@@ -24,8 +24,6 @@ contract Sender is OwnerIsCreator {
         uint256 fees // The fees paid for sending the CCIP message.
     );
 
-    event LinkBalance(address, uint256);
-
     IRouterClient router;
 
     LinkTokenInterface private linkToken;
@@ -47,11 +45,9 @@ contract Sender is OwnerIsCreator {
     function sendLinkTo(address _to) external onlyOwner {
         uint256 balance = linkToken.balanceOf(address(this));
 
-        emit LinkBalance(address(this), balance);
+        if (balance == 0) revert NotEnoughBalance(0, 0);
 
-        require(balance > 0, "Not enough LINK tokens in MyUpgradeableSender");
-
-        require(linkToken.transfer(_to, balance), "LINK token transfer failed");
+        linkToken.transfer(_to, balance);
     }
 
     function setCanSendAddr(address _canSendAddr) external onlyOwner {

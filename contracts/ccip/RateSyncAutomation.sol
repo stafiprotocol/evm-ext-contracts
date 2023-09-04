@@ -30,6 +30,8 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
 
     error MapUintOperationError();
 
+    error DstContrantExists();
+
     event SendMessage(
         bytes32 indexed messageId,
         address indexed dstContract,
@@ -98,7 +100,6 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
         address _dstContract,
         address _receiver
     ) external onlyAdmin {
-        require(msg.sender == admin, "only admin can add dst chain contract");
         RTokonRate memory rTokenRate = RTokonRate(
             _sourceContract,
             _dstContract,
@@ -109,10 +110,9 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
         );
 
         // Check if the contracts are already added to avoid duplication
-        require(
-            mapUint.dstRTokenMap[_dstContract].dstChainId == 0,
-            "dst contract already exists"
-        );
+        if (mapUint.dstRTokenMap[_dstContract].dstChainId != 0) {
+            revert DstContrantExists();
+        }
 
         if (address(sourceRokenMap[_sourceContract]) == address(0)) {
             sourceRokenMap[_sourceContract] = ILsdToken(_sourceContract);
@@ -125,10 +125,6 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
     }
 
     function removeDstChainContract(address _dstContract) external onlyAdmin {
-        require(
-            msg.sender == admin,
-            "only admin can remove dst chain contract"
-        );
         bool done = subtract(mapUint, _dstContract);
         if (!done) {
             revert MapUintOperationError();
@@ -136,7 +132,6 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
     }
 
     function removeSourceContract(address _sourceContract) external onlyAdmin {
-        require(msg.sender == admin, "only admin can remove source contract");
         delete sourceRokenMap[_sourceContract];
     }
 
@@ -182,10 +177,7 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
         uint256 newRate = sourceRokenMap[token.sourceContract].getRate();
         // dst rate != source rate
         if (token.rate != newRate) {
-            SyncContract memory sc = SyncContract(
-                token.dstContract,
-                newRate
-            );
+            SyncContract memory sc = SyncContract(token.dstContract, newRate);
 
             bytes32 messageId = sender.sendMessage(
                 token.dstChainId,
