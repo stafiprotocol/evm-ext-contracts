@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-interface IUpgradeableSender {
+interface ICCIPSender {
     function sendMessage(
         uint64 destinationChainSelector,
         address receiver,

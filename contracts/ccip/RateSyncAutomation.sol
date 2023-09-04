@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.19;
-pragma experimental ABIEncoderV2;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
-import "./interface/ILSDRToken.sol";
+import "./interface/ILsdToken.sol";
 import "./interface/ICCIPSender.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 struct RTokonRate {
     address sourceContract;
@@ -14,6 +12,7 @@ struct RTokonRate {
     uint64 dstChainId;
     address receiver;
     uint256 rate;
+    uint256 lastExecutedBlock;
 }
 
 struct SyncContract {
@@ -21,9 +20,16 @@ struct SyncContract {
     uint256 rate;
 }
 
-// TODO: add remove map or edit map
+struct MapUint {
+    mapping(address => RTokonRate) dstRTokenMap;
+    address[] keys;
+}
 
-contract RateSyncAutomation is AutomationCompatibleInterface, Initializable {
+contract RateSyncAutomation is AutomationCompatibleInterface {
+    error TransferNotAllow();
+
+    error MapUintOperationError();
+
     event SendMessage(
         bytes32 indexed messageId,
         address indexed dstContract,
@@ -32,31 +38,24 @@ contract RateSyncAutomation is AutomationCompatibleInterface, Initializable {
         uint256 rate
     );
 
-    event CheckStatus(bool);
+    uint256 public gapBlock;
 
     address public admin;
 
     address public ccipRegister;
 
-    IUpgradeableSender sender;
+    MapUint private mapUint;
 
-    error TransferNotAllow();
+    ICCIPSender private sender;
 
     // address is the source contract
-    mapping(address => ILSDRToken) sourceRokenMap;
+    mapping(address => ILsdToken) public sourceRokenMap;
 
-    // address is dst contranct address
-    mapping(address => RTokonRate) dstRTokenMap;
-
-    address[] public dstRokenAddresses;
-
-    function initialize(
-        address _ccipRegister,
-        address _sender
-    ) public initializer {
+    constructor(address _ccipRegister, address _sender, uint256 _gapBlock) {
         admin = msg.sender;
         ccipRegister = _ccipRegister;
-        sender = IUpgradeableSender(_sender);
+        sender = ICCIPSender(_sender);
+        gapBlock = _gapBlock;
     }
 
     /**
@@ -77,27 +76,68 @@ contract RateSyncAutomation is AutomationCompatibleInterface, Initializable {
     }
 
     function setSender(address _sender) external onlyAdmin {
-        sender = IUpgradeableSender(_sender);
+        sender = ICCIPSender(_sender);
+    }
+
+    function getDstMapItem(
+        uint index
+    ) external view returns (address, address, uint64, address, uint256) {
+        RTokonRate memory data = mapUint.dstRTokenMap[mapUint.keys[index]];
+        return (
+            data.sourceContract,
+            data.dstContract,
+            data.dstChainId,
+            data.receiver,
+            data.rate
+        );
     }
 
     function addDstChainContract(
-        uint64 _dst_chainId,
-        address _source_contract,
-        address _dst_contract,
+        uint64 _dstChainId,
+        address _sourceContract,
+        address _dstContract,
         address _receiver
     ) external onlyAdmin {
         require(msg.sender == admin, "only admin can add dst chain contract");
         RTokonRate memory rTokenRate = RTokonRate(
-            _source_contract,
-            _dst_contract,
-            _dst_chainId,
+            _sourceContract,
+            _dstContract,
+            _dstChainId,
             _receiver,
+            0,
             0
         );
-        dstRTokenMap[_dst_contract] = rTokenRate;
 
-        sourceRokenMap[_source_contract] = ILSDRToken(_source_contract);
-        dstRokenAddresses.push(_dst_contract);
+        // Check if the contracts are already added to avoid duplication
+        require(
+            mapUint.dstRTokenMap[_dstContract].dstChainId == 0,
+            "dst contract already exists"
+        );
+
+        if (address(sourceRokenMap[_sourceContract]) == address(0)) {
+            sourceRokenMap[_sourceContract] = ILsdToken(_sourceContract);
+        }
+
+        bool done = add(mapUint, _dstContract, rTokenRate);
+        if (!done) {
+            revert MapUintOperationError();
+        }
+    }
+
+    function removeDstChainContract(address _dstContract) external onlyAdmin {
+        require(
+            msg.sender == admin,
+            "only admin can remove dst chain contract"
+        );
+        bool done = subtract(mapUint, _dstContract);
+        if (!done) {
+            revert MapUintOperationError();
+        }
+    }
+
+    function removeSourceContract(address _sourceContract) external onlyAdmin {
+        require(msg.sender == admin, "only admin can remove source contract");
+        delete sourceRokenMap[_sourceContract];
     }
 
     /**
@@ -112,16 +152,21 @@ contract RateSyncAutomation is AutomationCompatibleInterface, Initializable {
         onlyCCIPAutoMotion
         returns (bool upkeepNeeded, bytes memory performData)
     {
-        for (uint i = 0; i < dstRokenAddresses.length; i++) {
-            RTokonRate memory token = dstRTokenMap[dstRokenAddresses[i]];
+        for (uint i = 0; i < mapUint.keys.length; i++) {
+            RTokonRate memory token = mapUint.dstRTokenMap[mapUint.keys[i]];
+            if (block.number - token.lastExecutedBlock < gapBlock) {
+                continue;
+            }
             // dst rate != source rate
             uint256 newRate = sourceRokenMap[token.sourceContract].Rate();
             if (token.rate != newRate) {
-                emit CheckStatus(true);
+                token.lastExecutedBlock = block.number;
+                mapUint
+                    .dstRTokenMap[token.dstContract]
+                    .lastExecutedBlock = token.lastExecutedBlock;
                 return (true, abi.encode(token));
             }
         }
-        emit CheckStatus(false);
         return (false, bytes(""));
     }
 
@@ -137,53 +182,79 @@ contract RateSyncAutomation is AutomationCompatibleInterface, Initializable {
         uint256 newRate = sourceRokenMap[token.sourceContract].Rate();
         // dst rate != source rate
         if (token.rate != newRate) {
-            bytes memory data = abi.encode(
-                SyncContract({dstContract: token.dstContract, rate: token.rate})
+            SyncContract memory sc = SyncContract(
+                token.dstContract,
+                newRate
             );
 
             bytes32 messageId = sender.sendMessage(
                 token.dstChainId,
                 token.receiver,
-                data
+                abi.encode(sc)
             );
 
-            dstRTokenMap[token.dstContract].rate = token.rate;
+            // update save data
+            mapUint.dstRTokenMap[token.dstContract].rate = newRate;
 
             emit SendMessage(
                 messageId,
-                token.dstContract,
+                sc.dstContract,
                 token.receiver,
                 token.dstChainId,
-                token.rate
+                sc.rate
             );
         }
-    }
-
-    function testUpkeep(
-        address _receiver,
-        address _dstContract
-    ) external onlyAdmin {
-        SyncContract memory td = SyncContract({
-            dstContract: _dstContract,
-            rate: 12
-        });
-        bytes memory data = abi.encode(td);
-        bytes32 messageId = sender.sendMessage(
-            12532609583862916517,
-            _receiver,
-            data
-        );
-        emit SendMessage(
-            messageId,
-            _dstContract,
-            _receiver,
-            12532609583862916517,
-            12
-        );
     }
 
     /**
      * @notice Receive funds
      */
     receive() external payable {}
+
+    // Add a new RTokonRate or update an existing one
+    function add(
+        MapUint storage self,
+        address itemId,
+        RTokonRate memory rate
+    ) internal returns (bool) {
+        RTokonRate storage oldRate = self.dstRTokenMap[itemId];
+
+        // If this is a new item, add its key to the keys array
+        if (oldRate.dstChainId == 0 && rate.dstChainId != 0) {
+            self.keys.push(itemId);
+        }
+
+        // Update the value in the mapping
+        self.dstRTokenMap[itemId] = rate;
+        return true;
+    }
+
+    // Remove an RTokonRate
+    function subtract(
+        MapUint storage self,
+        address itemId
+    ) internal returns (bool) {
+        RTokonRate storage oldRate = self.dstRTokenMap[itemId];
+
+        // If the item doesn't exist, exit
+        if (oldRate.dstChainId == 0) {
+            return false;
+        }
+
+        // Delete the item from the mapping
+        delete self.dstRTokenMap[itemId];
+
+        // Remove the key from the keys array
+        uint256 kl = self.keys.length;
+        if (kl > 0) {
+            for (uint256 i = 0; i < kl; i++) {
+                if (itemId == self.keys[i]) {
+                    self.keys[i] = self.keys[kl - 1];
+                    break;
+                }
+            }
+        }
+        self.keys.pop();
+        return true;
+    }
 }
