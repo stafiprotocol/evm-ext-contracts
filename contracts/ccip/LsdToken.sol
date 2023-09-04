@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 
-contract LSDToken {
+contract LsdToken {
 
     uint256 public Rate;
 

@@ -158,7 +158,7 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
                 continue;
             }
             // dst rate != source rate
-            uint256 newRate = sourceRokenMap[token.sourceContract].Rate();
+            uint256 newRate = sourceRokenMap[token.sourceContract].getRate();
             if (token.rate != newRate) {
                 token.lastExecutedBlock = block.number;
                 mapUint
@@ -179,7 +179,7 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
     ) external override onlyCCIPAutoMotion {
         RTokonRate memory token = abi.decode(performData, (RTokonRate));
 
-        uint256 newRate = sourceRokenMap[token.sourceContract].Rate();
+        uint256 newRate = sourceRokenMap[token.sourceContract].getRate();
         // dst rate != source rate
         if (token.rate != newRate) {
             SyncContract memory sc = SyncContract(
