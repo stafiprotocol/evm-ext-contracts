@@ -7,7 +7,7 @@ import "./interface/ILsdToken.sol";
 import "./interface/ICCIPSender.sol";
 
 struct RTokonRate {
-    address sourceContract;
+    address srcContract;
     address dstContract;
     uint64 dstChainId;
     address receiver;
@@ -86,7 +86,7 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
     ) external view returns (address, address, uint64, address, uint256) {
         RTokonRate memory data = mapUint.dstRTokenMap[mapUint.keys[index]];
         return (
-            data.sourceContract,
+            data.srcContract,
             data.dstContract,
             data.dstChainId,
             data.receiver,
@@ -96,12 +96,12 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
 
     function addDstChainContract(
         uint64 _dstChainId,
-        address _sourceContract,
+        address _srcContract,
         address _dstContract,
         address _receiver
     ) external onlyAdmin {
         RTokonRate memory rTokenRate = RTokonRate(
-            _sourceContract,
+            _srcContract,
             _dstContract,
             _dstChainId,
             _receiver,
@@ -114,8 +114,8 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
             revert DstContrantExists();
         }
 
-        if (address(sourceRokenMap[_sourceContract]) == address(0)) {
-            sourceRokenMap[_sourceContract] = ILsdToken(_sourceContract);
+        if (address(sourceRokenMap[_srcContract]) == address(0)) {
+            sourceRokenMap[_srcContract] = ILsdToken(_srcContract);
         }
 
         bool done = add(mapUint, _dstContract, rTokenRate);
@@ -131,8 +131,8 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
         }
     }
 
-    function removeSourceContract(address _sourceContract) external onlyAdmin {
-        delete sourceRokenMap[_sourceContract];
+    function removesrcContract(address _srcContract) external onlyAdmin {
+        delete sourceRokenMap[_srcContract];
     }
 
     /**
@@ -153,7 +153,7 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
                 continue;
             }
             // dst rate != source rate
-            uint256 newRate = sourceRokenMap[token.sourceContract].getRate();
+            uint256 newRate = sourceRokenMap[token.srcContract].getRate();
             if (token.rate != newRate) {
                 token.lastExecutedBlock = block.number;
                 mapUint
@@ -174,7 +174,7 @@ contract RateSyncAutomation is AutomationCompatibleInterface {
     ) external override onlyCCIPAutoMotion {
         RTokonRate memory token = abi.decode(performData, (RTokonRate));
 
-        uint256 newRate = sourceRokenMap[token.sourceContract].getRate();
+        uint256 newRate = sourceRokenMap[token.srcContract].getRate();
         // dst rate != source rate
         if (token.rate != newRate) {
             SyncContract memory sc = SyncContract(token.dstContract, newRate);
