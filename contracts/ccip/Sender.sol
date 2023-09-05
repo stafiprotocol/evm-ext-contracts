@@ -5,30 +5,86 @@ import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/
 import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
+import "./interface/ICCIPRateProvider.sol";
 import "./interface/ISender.sol";
 
+struct TokenInfo {
+    uint256 rate;
+    uint256 lastCheckedBlock;
+    address destination;
+    uint64 destinationChainSelector;
+    address receiver;
+}
+
+struct SyncMsg {
+    address destination;
+    uint256 rate;
+}
+
 /// @title - A simple contract for sending string data across chains.
-contract Sender is OwnerIsCreator, ISender {
-    using EnumerableSet for EnumerableSet.AddressSet;
+contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
+    uint256 public gapBlock;
+
+    address public ccipRegister;
 
     IRouterClient router;
 
-    LinkTokenInterface private linkToken;
+    LinkTokenInterface linkToken;
 
-    EnumerableSet.AddressSet sendAddresses;
+    TokenInfo rethInfo;
 
-    modifier onlySendAddress() {
-        if (!sendAddresses.contains(msg.sender)) {
+    TokenInfo rmaticInfo;
+
+    // TODO: change to source contract
+    // TODO: sender provider use other contrat
+    ICCIPRateProvider rethProvider;
+
+    ICCIPRateProvider rmaticProvider;
+
+    modifier onlyCCIPRegister() {
+        if (ccipRegister != msg.sender) {
             revert TransferNotAllow();
         }
         _;
     }
 
-    constructor(address _router, address _link) {
+    constructor(
+        address _router,
+        address _link,
+        address _ccipRegister,
+        uint256 _gapBlock
+    ) {
         router = IRouterClient(_router);
         linkToken = LinkTokenInterface(_link);
-        sendAddresses.add(msg.sender);
+        ccipRegister = _ccipRegister;
+        gapBlock = _gapBlock;
+    }
+
+    function initRETH(
+        address _rethSource,
+        address _arbitrumReciver,
+        address _arbitrumRateProvider,
+        uint64 _arbitrumSelector
+    ) external onlyOwner {
+        if (address(rethProvider) != address(0)) revert InitCompleted();
+        rethProvider = ICCIPRateProvider(_rethSource);
+        rethInfo.destination = _arbitrumRateProvider;
+        rethInfo.receiver = _arbitrumReciver;
+        rethInfo.destinationChainSelector = _arbitrumSelector;
+    }
+
+    function initRMATIC(
+        address _rmaticSource,
+        address _polygonReciver,
+        address _polygonRateProvider,
+        uint64 _polygonSelector
+    ) external onlyOwner {
+        if (address(rmaticProvider) != address(0)) revert InitCompleted();
+        rmaticProvider = ICCIPRateProvider(_rmaticSource);
+        rmaticInfo.destination = _polygonRateProvider;
+        rmaticInfo.receiver = _polygonReciver;
+        rmaticInfo.destinationChainSelector = _polygonSelector;
     }
 
     function withdrawLink(address _to) external onlyOwner {
@@ -37,14 +93,6 @@ contract Sender is OwnerIsCreator, ISender {
         if (balance == 0) revert NotEnoughBalance(0, 0);
 
         linkToken.transfer(_to, balance);
-    }
-
-    function addSendAddress(address _addAddress) external onlyOwner {
-        sendAddresses.add(_addAddress);
-    }
-
-    function removeSendAddress(address _removeAddress) external onlyOwner {
-        sendAddresses.remove(_removeAddress);
     }
 
     /// @notice Sends data to receiver on the destination chain.
@@ -56,8 +104,8 @@ contract Sender is OwnerIsCreator, ISender {
     function sendMessage(
         uint64 destinationChainSelector,
         address receiver,
-        bytes calldata data
-    ) external onlySendAddress returns (bytes32 messageId) {
+        bytes memory data
+    ) internal returns (bytes32 messageId) {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver), // ABI-encoded receiver address
@@ -97,5 +145,83 @@ contract Sender is OwnerIsCreator, ISender {
 
         // Return the message ID
         return messageId;
+    }
+
+    /**
+     * @notice Get list of addresses that are underfunded and return payload compatible with Chainlink Automation Network
+     * @return upkeepNeeded signals if upkeep is needed, performData is an abi encoded list of addresses that need funds
+     */
+    function checkUpkeep(
+        bytes calldata
+    )
+        external
+        override
+        onlyCCIPRegister
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        uint taskType = 0;
+        if (block.number - rethInfo.lastCheckedBlock >= gapBlock) {
+            rethInfo.lastCheckedBlock = block.number;
+            uint256 newRate = rethProvider.getRate();
+            if (rethInfo.rate != newRate) {
+                rethInfo.rate = newRate;
+                taskType = 1;
+            }
+        }
+        if (block.number - rmaticInfo.lastCheckedBlock >= gapBlock) {
+            rmaticInfo.lastCheckedBlock = block.number;
+            uint256 newRate = rethProvider.getRate();
+            if (rmaticInfo.rate != newRate) {
+                rmaticInfo.rate = newRate;
+                taskType += 2;
+            }
+        }
+        if (taskType > 0) {
+            return (true, abi.encode(taskType));
+        }
+        return (false, bytes(""));
+    }
+
+    /**
+     * @notice Called by Chainlink Automation Node to send funds to underfunded addresses
+     * @param performData The abi encoded list of addresses to fund
+     */
+    function performUpkeep(
+        bytes calldata performData
+    ) external override onlyCCIPRegister {
+        uint taskType = abi.decode(performData, (uint));
+        if (taskType == 1) {
+            sendRETHRate();
+        } else if (taskType == 2) {
+            sendRMATICRate();
+        } else if (taskType == 3) {
+            sendRETHRate();
+            sendRMATICRate();
+        }
+    }
+
+    function sendRETHRate() internal {
+        uint256 newRate = rethProvider.getRate();
+        sendRate(rethInfo, newRate);
+    }
+
+    function sendRMATICRate() internal {
+        uint256 newRate = rmaticProvider.getRate();
+        sendRate(rmaticInfo, newRate);
+    }
+
+    function sendRate(TokenInfo storage tokenInfo, uint256 newRate) internal {
+        if (tokenInfo.rate != newRate) {
+            SyncMsg memory syncMsg = SyncMsg(tokenInfo.destination, newRate);
+
+            sendMessage(
+                tokenInfo.destinationChainSelector,
+                tokenInfo.receiver,
+                abi.encode(syncMsg)
+            );
+
+            // update token save rate
+            tokenInfo.rate = newRate;
+        }
     }
 }

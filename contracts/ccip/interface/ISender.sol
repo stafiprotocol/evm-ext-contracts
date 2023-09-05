@@ -2,6 +2,7 @@
 pragma solidity ^0.8.19;
 
 interface ISender {
+    error InitCompleted();
     error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees);
     error TransferNotAllow();
     event MessageSent(
@@ -14,15 +15,23 @@ interface ISender {
         uint256 fees
     );
 
-    function addSendAddress(address _addAddress) external;
+    function ccipRegister() external view returns (address);
 
-    function removeSendAddress(address _removeAddress) external;
+    function gapBlock() external view returns (uint256);
 
-    function sendMessage(
-        uint64 destinationChainSelector,
-        address receiver,
-        bytes memory data
-    ) external returns (bytes32 messageId);
+    function initRETH(
+        address _rethSource,
+        address _arbitrumReciver,
+        address _arbitrumRateProvider,
+        uint64 _arbitrumSelector
+    ) external;
+
+    function initRMATIC(
+        address _rmaticSource,
+        address _polygonReciver,
+        address _polygonRateProvider,
+        uint64 _polygonSelector
+    ) external;
 
     function withdrawLink(address _to) external;
 }

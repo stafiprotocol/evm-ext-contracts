@@ -3,9 +3,10 @@ pragma solidity 0.8.19;
 
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
-import "./interface/ILsdToken.sol";
+import "./interface/ICCIPRateProvider.sol";
 
-struct SyncContract {
+
+struct SyncMsg {
     address destination;
     uint256 rate;
 }
@@ -32,11 +33,11 @@ contract Receiver is CCIPReceiver {
         lastReceivedMessageId = any2EvmMessage.messageId; // fetch the messageId
         lastReceivedData = any2EvmMessage.data;
 
-        SyncContract memory token = abi.decode(
+        SyncMsg memory token = abi.decode(
             lastReceivedData,
-            (SyncContract)
+            (SyncMsg)
         );
-        ILsdToken(token.destination).setRate(token.rate);
+        ICCIPRateProvider(token.destination).setRate(token.rate);
 
         emit MessageReceived(
             any2EvmMessage.messageId,

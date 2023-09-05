@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-interface ILsdToken {
+interface ICCIPRateProvider {
+    error TransferNotAllow();
+
+    error ReceiverExists();
+
+    function setReceiver(address _receiver) external;
+
     function setRate(uint256 _rate) external;
 
     function getRate() external view returns (uint256);
