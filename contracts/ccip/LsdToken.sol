@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-
 contract LsdToken {
-
-    uint256 public Rate;
+    uint256 private Rate;
 
     // Construct
     constructor() {
@@ -15,4 +13,7 @@ contract LsdToken {
         Rate = _rate;
     }
 
+    function getRate() external view returns (uint256) {
+        return Rate;
+    }
 }
