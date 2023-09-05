@@ -2,18 +2,18 @@
 pragma solidity 0.8.19;
 
 contract LsdToken {
-    uint256 private Rate;
+    uint256 private rate;
 
     // Construct
     constructor() {
-        Rate = 1;
+        rate = 1;
     }
 
     function setRate(uint256 _rate) external {
-        Rate = _rate;
+        rate = _rate;
     }
 
     function getRate() external view returns (uint256) {
-        return Rate;
+        return rate;
     }
 }

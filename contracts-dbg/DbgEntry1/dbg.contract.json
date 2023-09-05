@@ -1,7 +1,0 @@
-{
-    "solc": "0.8.19",
-    "sourceDirs": [
-        "."
-    ],
-    "entryPoint": "DbgEntry"
-}

@@ -1,14 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox");
-// https://www.npmjs.com/package/@ericxstone/hardhat-blockscout-verify?activeTab=readme
-require("@nomiclabs/hardhat-ethers");
-require("@openzeppelin/hardhat-upgrades");
 require('dotenv').config();
 require("hardhat-gas-reporter");
 require('solidity-coverage')
-
-const { ProxyAgent, setGlobalDispatcher } = require('undici');
-const proxyAgent = new ProxyAgent("http://127.0.0.1:7890")
-setGlobalDispatcher(proxyAgent);
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {

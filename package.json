@@ -1,31 +1,32 @@
 {
-  "name": "solidity-hardhat",
+  "name": "evm-ext-contracts",
   "version": "1.0.0",
   "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  },
   "devDependencies": {
     "@chainlink/contracts": "^0.6.1",
     "@chainlink/contracts-ccip": "^0.7.3",
+    "@nomicfoundation/hardhat-ethers": "^3.0.4",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
     "@nomicfoundation/hardhat-toolbox": "^3.0.0",
-    "@nomicfoundation/hardhat-verify": "^1.0.3",
+    "@nomicfoundation/hardhat-verify": "^1.1.1",
     "@nomiclabs/hardhat-etherscan": "^3.1.7",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
-    "@openzeppelin/hardhat-upgrades": "^2.2.1",
     "@tenderly/hardhat-tenderly": "^1.7.7",
+    "ethers": "^6.7.1",
     "hardhat": "^2.16.1",
+    "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.9",
     "solidity-coverage": "^0.8.4"
-  },
-  "dependencies": {
-    "@ericxstone/hardhat-blockscout-verify": "^1.0.2",
-    "dotenv": "^16.3.1",
-    "undici": "^5.22.1"
   }
 }
