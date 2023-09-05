@@ -17,8 +17,6 @@ interface ISender {
 
     function ccipRegister() external view returns (address);
 
-    function gapBlock() external view returns (uint256);
-
     function initRETH(
         address _rethSource,
         address _arbitrumReciver,

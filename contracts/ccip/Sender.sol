@@ -12,7 +12,6 @@ import "./interface/ISender.sol";
 
 struct TokenInfo {
     uint256 rate;
-    uint256 lastCheckedBlock;
     address destination;
     uint64 destinationChainSelector;
     address receiver;
@@ -25,8 +24,6 @@ struct SyncMsg {
 
 /// @title - A simple contract for sending string data across chains.
 contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
-    uint256 public gapBlock;
-
     address public ccipRegister;
 
     IRouterClient router;
@@ -51,13 +48,11 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
     constructor(
         address _router,
         address _link,
-        address _ccipRegister,
-        uint256 _gapBlock
+        address _ccipRegister
     ) {
         router = IRouterClient(_router);
         linkToken = LinkTokenInterface(_link);
         ccipRegister = _ccipRegister;
-        gapBlock = _gapBlock;
     }
 
     function initRETH(
@@ -159,21 +154,15 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         returns (bool upkeepNeeded, bytes memory performData)
     {
         uint taskType = 0;
-        if (block.number - rethInfo.lastCheckedBlock >= gapBlock) {
-            rethInfo.lastCheckedBlock = block.number;
-            uint256 newRate = reth.getExchangeRate();
-            if (rethInfo.rate != newRate) {
-                rethInfo.rate = newRate;
-                taskType = 1;
-            }
+        uint256 newRate = reth.getExchangeRate();
+        if (rethInfo.rate != newRate) {
+            rethInfo.rate = newRate;
+            taskType = 1;
         }
-        if (block.number - rmaticInfo.lastCheckedBlock >= gapBlock) {
-            rmaticInfo.lastCheckedBlock = block.number;
-            uint256 newRate = reth.getExchangeRate();
-            if (rmaticInfo.rate != newRate) {
-                rmaticInfo.rate = newRate;
-                taskType += 2;
-            }
+        newRate = rmatic.getRate();
+        if (rmaticInfo.rate != newRate) {
+            rmaticInfo.rate = newRate;
+            taskType += 2;
         }
         if (taskType > 0) {
             return (true, abi.encode(taskType));
