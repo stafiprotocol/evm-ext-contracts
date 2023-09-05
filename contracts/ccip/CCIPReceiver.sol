@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
-pragma experimental ABIEncoderV2;
 
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
@@ -19,7 +18,6 @@ contract Receiver is CCIPReceiver {
         address sender, // The address of the sender from the source chain.
         address dstContract,
         uint256 rate
-        // bytes data // The bytes data that was received.
     );
 
     bytes32 private lastReceivedMessageId; // Store the last received messageId.
