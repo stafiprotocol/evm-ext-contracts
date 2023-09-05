@@ -6,7 +6,8 @@ import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/O
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
-import "./interface/ICCIPRateProvider.sol";
+import "./interface/IRMAITCToken.sol";
+import "./interface/IRETHToken.sol";
 import "./interface/ISender.sol";
 
 struct TokenInfo {
@@ -36,11 +37,9 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
 
     TokenInfo rmaticInfo;
 
-    // TODO: change to source contract
-    // TODO: sender provider use other contrat
-    ICCIPRateProvider rethProvider;
+    IRETHToken reth;
 
-    ICCIPRateProvider rmaticProvider;
+    IRMAITCToken rmatic;
 
     modifier onlyCCIPRegister() {
         if (ccipRegister != msg.sender) {
@@ -67,8 +66,8 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         address _arbitrumRateProvider,
         uint64 _arbitrumSelector
     ) external onlyOwner {
-        if (address(rethProvider) != address(0)) revert InitCompleted();
-        rethProvider = ICCIPRateProvider(_rethSource);
+        if (address(reth) != address(0)) revert InitCompleted();
+        reth = IRETHToken(_rethSource);
         rethInfo.destination = _arbitrumRateProvider;
         rethInfo.receiver = _arbitrumReciver;
         rethInfo.destinationChainSelector = _arbitrumSelector;
@@ -80,8 +79,8 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         address _polygonRateProvider,
         uint64 _polygonSelector
     ) external onlyOwner {
-        if (address(rmaticProvider) != address(0)) revert InitCompleted();
-        rmaticProvider = ICCIPRateProvider(_rmaticSource);
+        if (address(rmatic) != address(0)) revert InitCompleted();
+        rmatic = IRMAITCToken(_rmaticSource);
         rmaticInfo.destination = _polygonRateProvider;
         rmaticInfo.receiver = _polygonReciver;
         rmaticInfo.destinationChainSelector = _polygonSelector;
@@ -162,7 +161,7 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         uint taskType = 0;
         if (block.number - rethInfo.lastCheckedBlock >= gapBlock) {
             rethInfo.lastCheckedBlock = block.number;
-            uint256 newRate = rethProvider.getRate();
+            uint256 newRate = reth.getExchangeRate();
             if (rethInfo.rate != newRate) {
                 rethInfo.rate = newRate;
                 taskType = 1;
@@ -170,7 +169,7 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         }
         if (block.number - rmaticInfo.lastCheckedBlock >= gapBlock) {
             rmaticInfo.lastCheckedBlock = block.number;
-            uint256 newRate = rethProvider.getRate();
+            uint256 newRate = reth.getExchangeRate();
             if (rmaticInfo.rate != newRate) {
                 rmaticInfo.rate = newRate;
                 taskType += 2;
@@ -191,37 +190,22 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
     ) external override onlyCCIPRegister {
         uint taskType = abi.decode(performData, (uint));
         if (taskType == 1) {
-            sendRETHRate();
+            sendRate(rethInfo);
         } else if (taskType == 2) {
-            sendRMATICRate();
+            sendRate(rmaticInfo);
         } else if (taskType == 3) {
-            sendRETHRate();
-            sendRMATICRate();
+            sendRate(rethInfo);
+            sendRate(rmaticInfo);
         }
     }
 
-    function sendRETHRate() internal {
-        uint256 newRate = rethProvider.getRate();
-        sendRate(rethInfo, newRate);
-    }
+    function sendRate(TokenInfo storage tokenInfo) internal {
+        SyncMsg memory syncMsg = SyncMsg(tokenInfo.destination, tokenInfo.rate);
 
-    function sendRMATICRate() internal {
-        uint256 newRate = rmaticProvider.getRate();
-        sendRate(rmaticInfo, newRate);
-    }
-
-    function sendRate(TokenInfo storage tokenInfo, uint256 newRate) internal {
-        if (tokenInfo.rate != newRate) {
-            SyncMsg memory syncMsg = SyncMsg(tokenInfo.destination, newRate);
-
-            sendMessage(
-                tokenInfo.destinationChainSelector,
-                tokenInfo.receiver,
-                abi.encode(syncMsg)
-            );
-
-            // update token save rate
-            tokenInfo.rate = newRate;
-        }
+        sendMessage(
+            tokenInfo.destinationChainSelector,
+            tokenInfo.receiver,
+            abi.encode(syncMsg)
+        );
     }
 }
