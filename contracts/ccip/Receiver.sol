@@ -6,7 +6,7 @@ import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications
 import "./interface/ILsdToken.sol";
 
 struct SyncContract {
-    address dstContract;
+    address destination;
     uint256 rate;
 }
 
@@ -16,7 +16,7 @@ contract Receiver is CCIPReceiver {
         bytes32 indexed messageId, // The unique ID of the message.
         uint64 indexed sourceChainSelector, // The chain selector of the source chain.
         address sender, // The address of the sender from the source chain.
-        address dstContract,
+        address destination,
         uint256 rate
     );
 
@@ -36,13 +36,13 @@ contract Receiver is CCIPReceiver {
             lastReceivedData,
             (SyncContract)
         );
-        ILsdToken(token.dstContract).setRate(token.rate);
+        ILsdToken(token.destination).setRate(token.rate);
 
         emit MessageReceived(
             any2EvmMessage.messageId,
             any2EvmMessage.sourceChainSelector, // fetch the source chain identifier (aka selector)
             abi.decode(any2EvmMessage.sender, (address)), // abi-decoding of the sender address,
-            token.dstContract,
+            token.destination,
             token.rate
         );
     }

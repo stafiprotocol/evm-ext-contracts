@@ -5,33 +5,21 @@ import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/
 import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "./interface/ISender.sol";
 
 /// @title - A simple contract for sending string data across chains.
-contract Sender is OwnerIsCreator {
-    // Custom errors to provide more descriptive revert messages.
-    error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees); // Used to make sure contract has enough balance.
-
-    error TransferNotAllow();
-
-    // Event emitted when a message is sent to another chain.
-    event MessageSent(
-        bytes32 indexed messageId, // The unique ID of the CCIP message.
-        uint64 indexed destinationChainSelector, // The chain selector of the destination chain.
-        address indexed sender,
-        address receiver, // The address of the receiver on the destination chain.
-        bytes data, // The bytes data being sent.
-        address feeToken, // the token address used to pay CCIP fees.
-        uint256 fees // The fees paid for sending the CCIP message.
-    );
+contract Sender is OwnerIsCreator, ISender {
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     IRouterClient router;
 
     LinkTokenInterface private linkToken;
 
-    address public canSendAddr;
+    EnumerableSet.AddressSet sendAddresses;
 
-    modifier onlyCanSend() {
-        if (msg.sender != canSendAddr && msg.sender != owner()) {
+    modifier onlySendAddress() {
+        if (!sendAddresses.contains(msg.sender)) {
             revert TransferNotAllow();
         }
         _;
@@ -40,9 +28,10 @@ contract Sender is OwnerIsCreator {
     constructor(address _router, address _link) {
         router = IRouterClient(_router);
         linkToken = LinkTokenInterface(_link);
+        sendAddresses.add(msg.sender);
     }
 
-    function sendLinkTo(address _to) external onlyOwner {
+    function withdrawLink(address _to) external onlyOwner {
         uint256 balance = linkToken.balanceOf(address(this));
 
         if (balance == 0) revert NotEnoughBalance(0, 0);
@@ -50,8 +39,12 @@ contract Sender is OwnerIsCreator {
         linkToken.transfer(_to, balance);
     }
 
-    function setCanSendAddr(address _canSendAddr) external onlyOwner {
-        canSendAddr = _canSendAddr;
+    function addSendAddress(address _addAddress) external onlyOwner {
+        sendAddresses.add(_addAddress);
+    }
+
+    function removeSendAddress(address _removeAddress) external onlyOwner {
+        sendAddresses.remove(_removeAddress);
     }
 
     /// @notice Sends data to receiver on the destination chain.
@@ -64,7 +57,7 @@ contract Sender is OwnerIsCreator {
         uint64 destinationChainSelector,
         address receiver,
         bytes calldata data
-    ) external onlyCanSend returns (bytes32 messageId) {
+    ) external onlySendAddress returns (bytes32 messageId) {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver), // ABI-encoded receiver address
