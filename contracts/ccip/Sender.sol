@@ -26,17 +26,17 @@ struct SyncMsg {
 contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
     address public ccipRegister;
 
-    IRouterClient router;
+    IRouterClient public router;
 
-    LinkTokenInterface linkToken;
+    LinkTokenInterface public linkToken;
 
-    TokenInfo rethInfo;
+    TokenInfo public rethInfo;
 
-    TokenInfo rmaticInfo;
+    TokenInfo public rmaticInfo;
 
-    IRETHToken reth;
+    IRETHToken public reth;
 
-    IRMAITCToken rmatic;
+    IRMAITCToken public rmatic;
 
     modifier onlyCCIPRegister() {
         if (ccipRegister != msg.sender) {
@@ -45,11 +45,7 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         _;
     }
 
-    constructor(
-        address _router,
-        address _link,
-        address _ccipRegister
-    ) {
+    constructor(address _router, address _link, address _ccipRegister) {
         router = IRouterClient(_router);
         linkToken = LinkTokenInterface(_link);
         ccipRegister = _ccipRegister;
@@ -103,7 +99,7 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver), // ABI-encoded receiver address
-            data: data, // ABI-encoded string
+            data: data, // ABI-encoded
             tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array indicating no tokens are being sent
             extraArgs: Client._argsToBytes(
                 // Additional arguments, setting gas limit and non-strict sequencing mode
@@ -149,6 +145,7 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         bytes calldata
     )
         external
+        view
         override
         onlyCCIPRegister
         returns (bool upkeepNeeded, bytes memory performData)
@@ -156,12 +153,10 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         uint taskType = 0;
         uint256 newRate = reth.getExchangeRate();
         if (rethInfo.rate != newRate) {
-            rethInfo.rate = newRate;
             taskType = 1;
         }
         newRate = rmatic.getRate();
         if (rmaticInfo.rate != newRate) {
-            rmaticInfo.rate = newRate;
             taskType += 2;
         }
         if (taskType > 0) {
@@ -179,21 +174,38 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
     ) external override onlyCCIPRegister {
         uint taskType = abi.decode(performData, (uint));
         if (taskType == 1) {
-            sendRate(rethInfo);
+            sendRETHRate();
         } else if (taskType == 2) {
-            sendRate(rmaticInfo);
+            sendMATICRate();
         } else if (taskType == 3) {
-            sendRate(rethInfo);
-            sendRate(rmaticInfo);
+            sendRETHRate();
+            sendMATICRate();
         }
     }
 
-    function sendRate(TokenInfo storage tokenInfo) internal {
-        SyncMsg memory syncMsg = SyncMsg(tokenInfo.destination, tokenInfo.rate);
+    function sendRETHRate() internal {
+        rethInfo.rate = reth.getExchangeRate();
+
+        SyncMsg memory syncMsg = SyncMsg(rethInfo.destination, rethInfo.rate);
 
         sendMessage(
-            tokenInfo.destinationChainSelector,
-            tokenInfo.receiver,
+            rethInfo.destinationChainSelector,
+            rethInfo.receiver,
+            abi.encode(syncMsg)
+        );
+    }
+
+    function sendMATICRate() internal {
+        rmaticInfo.rate = rmatic.getRate();
+
+        SyncMsg memory syncMsg = SyncMsg(
+            rmaticInfo.destination,
+            rmaticInfo.rate
+        );
+
+        sendMessage(
+            rmaticInfo.destinationChainSelector,
+            rmaticInfo.receiver,
             abi.encode(syncMsg)
         );
     }

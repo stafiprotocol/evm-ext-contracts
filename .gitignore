@@ -12,3 +12,8 @@ artifacts
 # ide files
 .vscode
 .idea
+
+# debug
+dbg.project.json
+artifacts-dbg/*
+contracts-dbg/*
