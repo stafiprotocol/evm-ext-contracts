@@ -2,10 +2,9 @@
 pragma solidity ^0.8.19;
 
 import "./interface/ICCIPRateProvider.sol";
-import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 
-contract CCIPRateProvider is ICCIPRateProvider, OwnerIsCreator {
-    address receiver;
+contract CCIPRateProvider is ICCIPRateProvider {
+    address public receiver;
 
     uint256 rate;
 
@@ -16,14 +15,8 @@ contract CCIPRateProvider is ICCIPRateProvider, OwnerIsCreator {
         _;
     }
 
-    constructor(uint256 _rate) {
+    constructor(uint256 _rate, address _receiver) {
         rate = _rate;
-    }
-
-    function setReceiver(address _receiver) external onlyOwner {
-        if (receiver != address(0)) {
-            revert ReceiverExists();
-        }
         receiver = _receiver;
     }
 

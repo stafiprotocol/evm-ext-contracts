@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-interface ISender {
+interface IRateSender {
     error InitCompleted();
     error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees);
     error TransferNotAllow();
@@ -15,18 +15,16 @@ interface ISender {
         uint256 fees
     );
 
-    function ccipRegister() external view returns (address);
-
     function initRETH(
         address _rethSource,
-        address _arbitrumReciver,
+        address _arbitrumReceiver,
         address _arbitrumRateProvider,
         uint64 _arbitrumSelector
     ) external;
 
     function initRMATIC(
         address _rmaticSource,
-        address _polygonReciver,
+        address _polygonReceiver,
         address _polygonRateProvider,
         uint64 _polygonSelector
     ) external;

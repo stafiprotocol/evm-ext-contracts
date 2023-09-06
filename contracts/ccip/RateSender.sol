@@ -6,37 +6,31 @@ import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/O
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
-import "./interface/IRMAITCToken.sol";
-import "./interface/IRETHToken.sol";
-import "./interface/ISender.sol";
+import "./interface/IRMAITCRate.sol";
+import "./interface/IRETHRate.sol";
+import "./interface/IRateSender.sol";
+import "./Types.sol";
 
-struct TokenInfo {
-    uint256 rate;
-    address destination;
-    uint64 destinationChainSelector;
-    address receiver;
-}
 
-struct SyncMsg {
-    address destination;
-    uint256 rate;
-}
-
-/// @title - A simple contract for sending string data across chains.
-contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
+/// @title - A contract for sending rate data across chains.
+contract RateSender is
+    AutomationCompatibleInterface,
+    OwnerIsCreator,
+    IRateSender
+{
     address public ccipRegister;
 
     IRouterClient public router;
 
     LinkTokenInterface public linkToken;
 
-    TokenInfo public rethInfo;
+    RateInfo public rethRateInfo;
 
-    TokenInfo public rmaticInfo;
+    RateInfo public rmaticRateInfo;
 
-    IRETHToken public reth;
+    IRETHRate public reth;
 
-    IRMAITCToken public rmatic;
+    IRMAITCRate public rmatic;
 
     modifier onlyCCIPRegister() {
         if (ccipRegister != msg.sender) {
@@ -53,28 +47,28 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
 
     function initRETH(
         address _rethSource,
-        address _arbitrumReciver,
+        address _arbitrumReceiver,
         address _arbitrumRateProvider,
         uint64 _arbitrumSelector
     ) external onlyOwner {
         if (address(reth) != address(0)) revert InitCompleted();
-        reth = IRETHToken(_rethSource);
-        rethInfo.destination = _arbitrumRateProvider;
-        rethInfo.receiver = _arbitrumReciver;
-        rethInfo.destinationChainSelector = _arbitrumSelector;
+        reth = IRETHRate(_rethSource);
+        rethRateInfo.destination = _arbitrumRateProvider;
+        rethRateInfo.receiver = _arbitrumReceiver;
+        rethRateInfo.destinationChainSelector = _arbitrumSelector;
     }
 
     function initRMATIC(
         address _rmaticSource,
-        address _polygonReciver,
+        address _polygonReceiver,
         address _polygonRateProvider,
         uint64 _polygonSelector
     ) external onlyOwner {
         if (address(rmatic) != address(0)) revert InitCompleted();
-        rmatic = IRMAITCToken(_rmaticSource);
-        rmaticInfo.destination = _polygonRateProvider;
-        rmaticInfo.receiver = _polygonReciver;
-        rmaticInfo.destinationChainSelector = _polygonSelector;
+        rmatic = IRMAITCRate(_rmaticSource);
+        rmaticRateInfo.destination = _polygonRateProvider;
+        rmaticRateInfo.receiver = _polygonReceiver;
+        rmaticRateInfo.destinationChainSelector = _polygonSelector;
     }
 
     function withdrawLink(address _to) external onlyOwner {
@@ -90,12 +84,11 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
     /// @param destinationChainSelector The identifier (aka selector) for the destination blockchain.
     /// @param receiver The address of the recipient on the destination blockchain.
     /// @param data The bytes data to be sent.
-    /// @return messageId The ID of the message that was sent.
     function sendMessage(
         uint64 destinationChainSelector,
         address receiver,
         bytes memory data
-    ) internal returns (bytes32 messageId) {
+    ) internal {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver), // ABI-encoded receiver address
@@ -103,7 +96,6 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
             tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array indicating no tokens are being sent
             extraArgs: Client._argsToBytes(
                 // Additional arguments, setting gas limit and non-strict sequencing mode
-                // TODO:
                 Client.EVMExtraArgsV1({gasLimit: 600_000, strict: false})
             ),
             // Set the feeToken  address, indicating LINK will be used for fees
@@ -120,7 +112,10 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         linkToken.approve(address(router), fees);
 
         // Send the message through the router and store the returned message ID
-        messageId = router.ccipSend(destinationChainSelector, evm2AnyMessage);
+        bytes32 messageId = router.ccipSend(
+            destinationChainSelector,
+            evm2AnyMessage
+        );
 
         // Emit an event with message details
         emit MessageSent(
@@ -132,9 +127,6 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
             address(linkToken),
             fees
         );
-
-        // Return the message ID
-        return messageId;
     }
 
     /**
@@ -147,16 +139,15 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
         external
         view
         override
-        onlyCCIPRegister
         returns (bool upkeepNeeded, bytes memory performData)
     {
         uint taskType = 0;
         uint256 newRate = reth.getExchangeRate();
-        if (rethInfo.rate != newRate) {
+        if (rethRateInfo.rate != newRate) {
             taskType = 1;
         }
         newRate = rmatic.getRate();
-        if (rmaticInfo.rate != newRate) {
+        if (rmaticRateInfo.rate != newRate) {
             taskType += 2;
         }
         if (taskType > 0) {
@@ -184,29 +175,32 @@ contract Sender is AutomationCompatibleInterface, OwnerIsCreator, ISender {
     }
 
     function sendRETHRate() internal {
-        rethInfo.rate = reth.getExchangeRate();
+        rethRateInfo.rate = reth.getExchangeRate();
 
-        SyncMsg memory syncMsg = SyncMsg(rethInfo.destination, rethInfo.rate);
+        RateMsg memory rateMsg = RateMsg(
+            rethRateInfo.destination,
+            rethRateInfo.rate
+        );
 
         sendMessage(
-            rethInfo.destinationChainSelector,
-            rethInfo.receiver,
-            abi.encode(syncMsg)
+            rethRateInfo.destinationChainSelector,
+            rethRateInfo.receiver,
+            abi.encode(rateMsg)
         );
     }
 
     function sendMATICRate() internal {
-        rmaticInfo.rate = rmatic.getRate();
+        rmaticRateInfo.rate = rmatic.getRate();
 
-        SyncMsg memory syncMsg = SyncMsg(
-            rmaticInfo.destination,
-            rmaticInfo.rate
+        RateMsg memory rateMsg = RateMsg(
+            rmaticRateInfo.destination,
+            rmaticRateInfo.rate
         );
 
         sendMessage(
-            rmaticInfo.destinationChainSelector,
-            rmaticInfo.receiver,
-            abi.encode(syncMsg)
+            rmaticRateInfo.destinationChainSelector,
+            rmaticRateInfo.receiver,
+            abi.encode(rateMsg)
         );
     }
 }
