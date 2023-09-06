@@ -34,10 +34,10 @@ contract RateSender is
     mapping(uint => RateInfo) public rmaticRateInfoOf;
 
     IRETHRate public reth;
-    uint256 rethLatestRate;
+    uint256 public rethLatestRate;
 
     IRMAITCRate public rmatic;
-    uint256 rmaticLatestRate;
+    uint256 public rmaticLatestRate;
 
     modifier onlyCCIPRegister() {
         if (ccipRegister != msg.sender) {
@@ -128,7 +128,6 @@ contract RateSender is
     }
 
     /// @notice Sends data to receiver on the destination chain.
-    /// @dev Assumes your contract has sufficient LINK.
     /// @param destinationChainSelector The identifier (aka selector) for the destination blockchain.
     /// @param receiver The address of the recipient on the destination blockchain.
     /// @param data The bytes data to be sent.
@@ -178,8 +177,8 @@ contract RateSender is
     }
 
     /**
-     * @notice Get list of addresses that are underfunded and return payload compatible with Chainlink Automation Network
-     * @return upkeepNeeded signals if upkeep is needed, performData is an abi encoded list of addresses that need funds
+     * @notice Checks if the exchange rates for RETH or RMATIC have changed.
+     * @return upkeepNeeded indicates if an update is required, performData is an ABI-encoded integer representing the task type.
      */
     function checkUpkeep(
         bytes calldata
@@ -205,8 +204,8 @@ contract RateSender is
     }
 
     /**
-     * @notice Called by Chainlink Automation Node to send funds to underfunded addresses
-     * @param performData The abi encoded list of addresses to fund
+     * @notice Called by the Chainlink Automation Network to update RETH and/or RMATIC exchange rates.
+     * @param performData The ABI-encoded integer representing the type of task to perform.
      */
     function performUpkeep(
         bytes calldata performData
