@@ -64,68 +64,59 @@ contract RateSender is
         address _receiver,
         address _rateProvider,
         uint64 _selector
-    ) external onlyOwner returns (bool) {
-        bool ok = rethChainSelectors.add(_selector);
-        if (ok) {
-            rethRateInfoOf[_selector] = RateInfo(_receiver, _rateProvider);
-        }
-        return ok;
+    ) external onlyOwner {
+        if (!rethChainSelectors.add(_selector)) revert SelectorExist();
+        rethRateInfoOf[_selector] = RateInfo({
+            receiver: _receiver,
+            destination: _rateProvider
+        });
     }
 
-    function removeRETHRateInfo(
-        uint64 _selector
-    ) external onlyOwner returns (bool) {
-        bool ok = rethChainSelectors.remove(_selector);
-        if (ok) {
-            delete rethRateInfoOf[_selector];
-        }
-        return ok;
+    function removeRETHRateInfo(uint64 _selector) external onlyOwner {
+        if (!rethChainSelectors.remove(_selector)) revert SelectorNotExist();
+        delete rethRateInfoOf[_selector];
     }
 
     function updateRETHRateInfo(
         address _receiver,
         address _rateProvider,
         uint64 _selector
-    ) external onlyOwner returns (bool) {
-        if (rethChainSelectors.contains(_selector)) {
-            rethRateInfoOf[_selector] = RateInfo(_receiver, _rateProvider);
-            return true;
-        }
-        return false;
+    ) external onlyOwner {
+        if (!rethChainSelectors.contains(_selector)) revert SelectorNotExist();
+        rethRateInfoOf[_selector] = RateInfo({
+            receiver: _receiver,
+            destination: _rateProvider
+        });
     }
 
     function addRMATICRateInfo(
         address _receiver,
         address _rateProvider,
         uint64 _selector
-    ) external onlyOwner returns (bool) {
-        bool ok = rmaticChainSelectors.add(_selector);
-        if (ok) {
-            rmaticRateInfoOf[_selector] = RateInfo(_receiver, _rateProvider);
-        }
-        return ok;
+    ) external onlyOwner {
+        if (!rmaticChainSelectors.add(_selector)) revert SelectorExist();
+        rmaticRateInfoOf[_selector] = RateInfo({
+            receiver: _receiver,
+            destination: _rateProvider
+        });
     }
 
-    function removeRMATICRateInfo(
-        uint64 _selector
-    ) external onlyOwner returns (bool) {
-        bool ok = rmaticChainSelectors.remove(_selector);
-        if (ok) {
-            delete rmaticRateInfoOf[_selector];
-        }
-        return ok;
+    function removeRMATICRateInfo(uint64 _selector) external onlyOwner {
+        if (!rmaticChainSelectors.remove(_selector)) revert SelectorNotExist();
+        delete rmaticRateInfoOf[_selector];
     }
 
     function updateRMATICRateInfo(
         address _receiver,
         address _rateProvider,
         uint64 _selector
-    ) external onlyOwner returns (bool) {
-        if (rmaticChainSelectors.contains(_selector)) {
-            rmaticRateInfoOf[_selector] = RateInfo(_receiver, _rateProvider);
-            return true;
-        }
-        return false;
+    ) external onlyOwner {
+        if (!rmaticChainSelectors.contains(_selector))
+            revert SelectorNotExist();
+        rmaticRateInfoOf[_selector] = RateInfo({
+            receiver: _receiver,
+            destination: _rateProvider
+        });
     }
 
     function withdrawLink(address _to) external onlyOwner {
@@ -237,10 +228,10 @@ contract RateSender is
             uint256 selector = rethChainSelectors.at(i);
             RateInfo memory rethRateInfo = rethRateInfoOf[selector];
 
-            RateMsg memory rateMsg = RateMsg(
-                rethRateInfo.destination,
-                rethLatestRate
-            );
+            RateMsg memory rateMsg = RateMsg({
+                destination: rethRateInfo.destination,
+                rate: rethLatestRate
+            });
 
             sendMessage(
                 uint64(selector),
@@ -256,10 +247,10 @@ contract RateSender is
             uint256 selector = rmaticChainSelectors.at(i);
             RateInfo memory rmaticRateInfo = rmaticRateInfoOf[selector];
 
-            RateMsg memory rateMsg = RateMsg(
-                rmaticRateInfo.destination,
-                rmaticLatestRate
-            );
+            RateMsg memory rateMsg = RateMsg({
+                destination: rmaticRateInfo.destination,
+                rate: rmaticLatestRate
+            });
 
             sendMessage(
                 uint64(selector),
