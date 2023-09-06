@@ -6,11 +6,11 @@ import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/O
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./interface/IRMAITCRate.sol";
 import "./interface/IRETHRate.sol";
 import "./interface/IRateSender.sol";
 import "./Types.sol";
-
 
 /// @title - A contract for sending rate data across chains.
 contract RateSender is
@@ -18,19 +18,26 @@ contract RateSender is
     OwnerIsCreator,
     IRateSender
 {
+    using EnumerableSet for EnumerableSet.UintSet;
+
     address public ccipRegister;
 
     IRouterClient public router;
 
     LinkTokenInterface public linkToken;
 
-    RateInfo public rethRateInfo;
+    EnumerableSet.UintSet private rethChainSelectors;
+    EnumerableSet.UintSet private rmaticChainSelectors;
 
-    RateInfo public rmaticRateInfo;
+    mapping(uint => RateInfo) rethRateInfoOf;
+
+    mapping(uint => RateInfo) rmaticRateInfoOf;
 
     IRETHRate public reth;
+    uint256 rethLastestRate;
 
     IRMAITCRate public rmatic;
+    uint256 rmaticLastestRate;
 
     modifier onlyCCIPRegister() {
         if (ccipRegister != msg.sender) {
@@ -39,36 +46,86 @@ contract RateSender is
         _;
     }
 
-    constructor(address _router, address _link, address _ccipRegister) {
+    constructor(
+        address _router,
+        address _link,
+        address _ccipRegister,
+        address _rethSource,
+        address _rmaticSource
+    ) {
         router = IRouterClient(_router);
         linkToken = LinkTokenInterface(_link);
         ccipRegister = _ccipRegister;
-    }
-
-    function initRETH(
-        address _rethSource,
-        address _arbitrumReceiver,
-        address _arbitrumRateProvider,
-        uint64 _arbitrumSelector
-    ) external onlyOwner {
-        if (address(reth) != address(0)) revert InitCompleted();
         reth = IRETHRate(_rethSource);
-        rethRateInfo.destination = _arbitrumRateProvider;
-        rethRateInfo.receiver = _arbitrumReceiver;
-        rethRateInfo.destinationChainSelector = _arbitrumSelector;
+        rmatic = IRMAITCRate(_rmaticSource);
     }
 
-    function initRMATIC(
-        address _rmaticSource,
-        address _polygonReceiver,
-        address _polygonRateProvider,
-        uint64 _polygonSelector
-    ) external onlyOwner {
-        if (address(rmatic) != address(0)) revert InitCompleted();
-        rmatic = IRMAITCRate(_rmaticSource);
-        rmaticRateInfo.destination = _polygonRateProvider;
-        rmaticRateInfo.receiver = _polygonReceiver;
-        rmaticRateInfo.destinationChainSelector = _polygonSelector;
+    function addRETHRateInfo(
+        address _receiver,
+        address _rateProvider,
+        uint64 _selector
+    ) external onlyOwner returns (bool) {
+        bool ok = rethChainSelectors.add(_selector);
+        if (ok) {
+            rethRateInfoOf[_selector] = RateInfo(_receiver, _rateProvider);
+        }
+        return ok;
+    }
+
+    function removeRETHRateInfo(
+        uint64 _selector
+    ) external onlyOwner returns (bool) {
+        bool ok = rethChainSelectors.remove(_selector);
+        if (ok) {
+            delete rethRateInfoOf[_selector];
+        }
+        return ok;
+    }
+
+    function updateRETHRateInfo(
+        address _receiver,
+        address _rateProvider,
+        uint64 _selector
+    ) external onlyOwner returns (bool) {
+        if (rethChainSelectors.contains(_selector)) {
+            rethRateInfoOf[_selector] = RateInfo(_receiver, _rateProvider);
+            return true;
+        }
+        return false;
+    }
+
+    function addRMATICRateInfo(
+        address _receiver,
+        address _rateProvider,
+        uint64 _selector
+    ) external onlyOwner returns (bool) {
+        bool ok = rmaticChainSelectors.add(_selector);
+        if (ok) {
+            rmaticRateInfoOf[_selector] = RateInfo(_receiver, _rateProvider);
+        }
+        return ok;
+    }
+
+    function removeRMATICRateInfo(
+        uint64 _selector
+    ) external onlyOwner returns (bool) {
+        bool ok = rmaticChainSelectors.remove(_selector);
+        if (ok) {
+            delete rmaticRateInfoOf[_selector];
+        }
+        return ok;
+    }
+
+    function updateRMATICRateInfo(
+        address _receiver,
+        address _rateProvider,
+        uint64 _selector
+    ) external onlyOwner returns (bool) {
+        if (rmaticChainSelectors.contains(_selector)) {
+            rmaticRateInfoOf[_selector] = RateInfo(_receiver, _rateProvider);
+            return true;
+        }
+        return false;
     }
 
     function withdrawLink(address _to) external onlyOwner {
@@ -143,11 +200,11 @@ contract RateSender is
     {
         uint taskType = 0;
         uint256 newRate = reth.getExchangeRate();
-        if (rethRateInfo.rate != newRate) {
+        if (rethLastestRate != newRate) {
             taskType = 1;
         }
         newRate = rmatic.getRate();
-        if (rmaticRateInfo.rate != newRate) {
+        if (rmaticLastestRate != newRate) {
             taskType += 2;
         }
         if (taskType > 0) {
@@ -175,32 +232,40 @@ contract RateSender is
     }
 
     function sendRETHRate() internal {
-        rethRateInfo.rate = reth.getExchangeRate();
+        rethLastestRate = reth.getExchangeRate();
+        for (uint256 i = 0; i < rethChainSelectors.length(); i++) {
+            uint256 selector = rethChainSelectors.at(i);
+            RateInfo memory rethRateInfo = rethRateInfoOf[selector];
 
-        RateMsg memory rateMsg = RateMsg(
-            rethRateInfo.destination,
-            rethRateInfo.rate
-        );
+            RateMsg memory rateMsg = RateMsg(
+                rethRateInfo.destination,
+                rethLastestRate
+            );
 
-        sendMessage(
-            rethRateInfo.destinationChainSelector,
-            rethRateInfo.receiver,
-            abi.encode(rateMsg)
-        );
+            sendMessage(
+                uint64(selector),
+                rethRateInfo.receiver,
+                abi.encode(rateMsg)
+            );
+        }
     }
 
     function sendMATICRate() internal {
-        rmaticRateInfo.rate = rmatic.getRate();
+        rmaticLastestRate = rmatic.getRate();
+        for (uint256 i = 0; i < rmaticChainSelectors.length(); i++) {
+            uint256 selector = rmaticChainSelectors.at(i);
+            RateInfo memory rmaticRateInfo = rmaticRateInfoOf[selector];
 
-        RateMsg memory rateMsg = RateMsg(
-            rmaticRateInfo.destination,
-            rmaticRateInfo.rate
-        );
+            RateMsg memory rateMsg = RateMsg(
+                rmaticRateInfo.destination,
+                rethLastestRate
+            );
 
-        sendMessage(
-            rmaticRateInfo.destinationChainSelector,
-            rmaticRateInfo.receiver,
-            abi.encode(rateMsg)
-        );
+            sendMessage(
+                uint64(selector),
+                rmaticRateInfo.receiver,
+                abi.encode(rateMsg)
+            );
+        }
     }
 }

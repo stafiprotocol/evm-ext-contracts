@@ -2,9 +2,7 @@
 pragma solidity 0.8.19;
 
 struct RateInfo {
-    uint256 rate;
     address destination;
-    uint64 destinationChainSelector;
     address receiver;
 }
 

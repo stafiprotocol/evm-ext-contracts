@@ -15,19 +15,33 @@ interface IRateSender {
         uint256 fees
     );
 
-    function initRETH(
-        address _rethSource,
-        address _arbitrumReceiver,
-        address _arbitrumRateProvider,
-        uint64 _arbitrumSelector
-    ) external;
+    function addRETHRateInfo(
+        address _receiver,
+        address _rateProvider,
+        uint64 _selector
+    ) external returns (bool);
 
-    function initRMATIC(
-        address _rmaticSource,
-        address _polygonReceiver,
-        address _polygonRateProvider,
-        uint64 _polygonSelector
-    ) external;
+    function removeRETHRateInfo(uint64 _selector) external returns (bool);
+
+    function updateRETHRateInfo(
+        address _receiver,
+        address _rateProvider,
+        uint64 _selector
+    ) external returns (bool);
+
+    function addRMATICRateInfo(
+        address _receiver,
+        address _rateProvider,
+        uint64 _selector
+    ) external returns (bool);
+
+    function removeRMATICRateInfo(uint64 _selector) external returns (bool);
+
+    function updateRMATICRateInfo(
+        address _receiver,
+        address _rateProvider,
+        uint64 _selector
+    ) external returns (bool);
 
     function withdrawLink(address _to) external;
 }
