@@ -34,10 +34,10 @@ contract RateSender is
     mapping(uint => RateInfo) public rmaticRateInfoOf;
 
     IRETHRate public reth;
-    uint256 rethLastestRate;
+    uint256 rethLatestRate;
 
     IRMAITCRate public rmatic;
-    uint256 rmaticLastestRate;
+    uint256 rmaticLatestRate;
 
     modifier onlyCCIPRegister() {
         if (ccipRegister != msg.sender) {
@@ -200,11 +200,11 @@ contract RateSender is
     {
         uint taskType = 0;
         uint256 newRate = reth.getExchangeRate();
-        if (rethLastestRate != newRate) {
+        if (rethLatestRate != newRate) {
             taskType = 1;
         }
         newRate = rmatic.getRate();
-        if (rmaticLastestRate != newRate) {
+        if (rmaticLatestRate != newRate) {
             taskType += 2;
         }
         if (taskType > 0) {
@@ -232,14 +232,14 @@ contract RateSender is
     }
 
     function sendRETHRate() internal {
-        rethLastestRate = reth.getExchangeRate();
+        rethLatestRate = reth.getExchangeRate();
         for (uint256 i = 0; i < rethChainSelectors.length(); i++) {
             uint256 selector = rethChainSelectors.at(i);
             RateInfo memory rethRateInfo = rethRateInfoOf[selector];
 
             RateMsg memory rateMsg = RateMsg(
                 rethRateInfo.destination,
-                rethLastestRate
+                rethLatestRate
             );
 
             sendMessage(
@@ -251,14 +251,14 @@ contract RateSender is
     }
 
     function sendMATICRate() internal {
-        rmaticLastestRate = rmatic.getRate();
+        rmaticLatestRate = rmatic.getRate();
         for (uint256 i = 0; i < rmaticChainSelectors.length(); i++) {
             uint256 selector = rmaticChainSelectors.at(i);
             RateInfo memory rmaticRateInfo = rmaticRateInfoOf[selector];
 
             RateMsg memory rateMsg = RateMsg(
                 rmaticRateInfo.destination,
-                rethLastestRate
+                rmaticLatestRate
             );
 
             sendMessage(
