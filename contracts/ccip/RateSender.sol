@@ -29,9 +29,9 @@ contract RateSender is
     EnumerableSet.UintSet private rethChainSelectors;
     EnumerableSet.UintSet private rmaticChainSelectors;
 
-    mapping(uint => RateInfo) rethRateInfoOf;
+    mapping(uint => RateInfo) public rethRateInfoOf;
 
-    mapping(uint => RateInfo) rmaticRateInfoOf;
+    mapping(uint => RateInfo) public rmaticRateInfoOf;
 
     IRETHRate public reth;
     uint256 rethLastestRate;
