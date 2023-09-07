@@ -204,7 +204,7 @@ contract RateSender is
     }
 
     /**
-     * @notice Called by the Chainlink Automation Network to update RETH and/or RMATIC exchange rates.
+     * @notice Called by the Chainlink Automation Network to update RETH and/or RMATIC rates.
      * @param performData The ABI-encoded integer representing the type of task to perform.
      */
     function performUpkeep(
