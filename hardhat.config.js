@@ -1,18 +1,20 @@
-require("hardhat-contract-sizer")
+require("hardhat-contract-sizer");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  solidity: "0.8.19",
-  settings: {
-    optimizer: {
-      enabled: true,
-      runs: 200,
+    solidity: {
+        version: "0.8.19",
+        settings: {
+            optimizer: {
+                enabled: true,
+                runs: 200,
+            },
+            viaIR: true,
+        },
     },
-    viaIR: true,
-  },
-  contractSizer: {
-    alphaSort: true,
-    runOnCompile: false,
-    disambiguatePaths: false,
-  },
-};
+    contractSizer: {
+        alphaSort: true,
+        runOnCompile: false,
+        disambiguatePaths: false,
+    },
+}

@@ -190,11 +190,11 @@ contract RateSender is
     {
         uint taskType = 0;
         uint256 newRate = reth.getExchangeRate();
-        if (rethLatestRate != newRate) {
+        if (rethLatestRate != newRate && rethChainSelectors.length() > 0) {
             taskType = 1;
         }
         newRate = rmatic.getRate();
-        if (rmaticLatestRate != newRate) {
+        if (rmaticLatestRate != newRate && rmaticChainSelectors.length() > 0) {
             taskType += 2;
         }
         if (taskType > 0) {
