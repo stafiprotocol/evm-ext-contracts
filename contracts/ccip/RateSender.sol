@@ -60,6 +60,10 @@ contract RateSender is
         rmatic = IRMAITCRate(_rmaticSource);
     }
 
+    function setRouter(address _router) external onlyOwner {
+        router = IRouterClient(_router);
+    }
+
     function addRETHRateInfo(
         address _receiver,
         address _rateProvider,
