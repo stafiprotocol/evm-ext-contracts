@@ -39,6 +39,8 @@ contract RateSender is
     IRMAITCRate public rmatic;
     uint256 public rmaticLatestRate;
 
+    uint256 public gas_limit;
+
     modifier onlyCCIPRegister() {
         if (ccipRegister != msg.sender) {
             revert TransferNotAllow();
@@ -58,10 +60,15 @@ contract RateSender is
         ccipRegister = _ccipRegister;
         reth = IRETHRate(_rethSource);
         rmatic = IRMAITCRate(_rmaticSource);
+        gas_limit = 600_000;
     }
 
     function setRouter(address _router) external onlyOwner {
         router = IRouterClient(_router);
+    }
+
+    function setGasLimit(uint256 _gas_limit) external onlyOwner {
+        gas_limit = _gas_limit;
     }
 
     function addRETHRateInfo(
@@ -147,7 +154,7 @@ contract RateSender is
             tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array indicating no tokens are being sent
             extraArgs: Client._argsToBytes(
                 // Additional arguments, setting gas limit and non-strict sequencing mode
-                Client.EVMExtraArgsV1({gasLimit: 600_000, strict: false})
+                Client.EVMExtraArgsV1({gasLimit: gas_limit, strict: false})
             ),
             // Set the feeToken  address, indicating LINK will be used for fees
             feeToken: address(linkToken)
