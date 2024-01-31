@@ -39,7 +39,9 @@ contract RateSender is
     IRMAITCRate public rmatic;
     uint256 public rmaticLatestRate;
 
-    uint256 public gas_limit;
+    uint256 public gasLimit;
+    bytes extraArgs;
+    bool useExtraArgs;
 
     modifier onlyCCIPRegister() {
         if (ccipRegister != msg.sender) {
@@ -60,15 +62,24 @@ contract RateSender is
         ccipRegister = _ccipRegister;
         reth = IRETHRate(_rethSource);
         rmatic = IRMAITCRate(_rmaticSource);
-        gas_limit = 600_000;
+        gasLimit = 600_000;
+        useExtraArgs = false;
     }
 
     function setRouter(address _router) external onlyOwner {
         router = IRouterClient(_router);
     }
 
-    function setGasLimit(uint256 _gas_limit) external onlyOwner {
-        gas_limit = _gas_limit;
+    function setGasLimit(uint256 _gasLimit) external onlyOwner {
+        gasLimit = _gasLimit;
+    }
+
+    function setExtraArgs(
+        bytes memory _extraArgs,
+        bool _useExtraArgs
+    ) external onlyOwner {
+        extraArgs = _extraArgs;
+        useExtraArgs = _useExtraArgs;
     }
 
     function addRETHRateInfo(
@@ -148,14 +159,18 @@ contract RateSender is
         bytes memory data
     ) internal {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
+        bytes memory thisExtraArgs = Client._argsToBytes(
+            // Additional arguments, setting gas limit and non-strict sequencing mode
+            Client.EVMExtraArgsV1({gasLimit: gasLimit})
+        );
+        if (useExtraArgs) {
+            thisExtraArgs = extraArgs;
+        }
         Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver), // ABI-encoded receiver address
             data: data, // ABI-encoded
             tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array indicating no tokens are being sent
-            extraArgs: Client._argsToBytes(
-                // Additional arguments, setting gas limit and non-strict sequencing mode
-                Client.EVMExtraArgsV1({gasLimit: gas_limit, strict: false})
-            ),
+            extraArgs: thisExtraArgs,
             // Set the feeToken  address, indicating LINK will be used for fees
             feeToken: address(linkToken)
         });
