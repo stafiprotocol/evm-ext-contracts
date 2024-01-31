@@ -10,7 +10,7 @@
    * addMATICRateInfo
 4. send link to Sender
 5. register Sender to [chainlink Automation sepolia](https://automation.chain.link/sepolia)
-   * CCIP Registry(ETH sepolia) 0xE16Df59B887e3Caa439E0b29B42bA2e7976FD8b2
+   * CCIP Registry(ETH sepolia) 0x86EFBD0b6736Bed994962f9797049422A3A8E8Ad
 
 ### [Supported Networks(Testnet)](https://docs.chain.link/ccip/supported-networks/v1_2_0/testnet#overview)
 
