@@ -27,17 +27,15 @@ contract RateReceiver is CCIPReceiver {
         allowSender = _allowSender;
     }
 
-    modifier onlyAllowSender() {
-        if (allowSender != msg.sender) {
-            revert TransferNotAllow();
-        }
-        _;
-    }
-
     /// handle a received message
     function _ccipReceive(
         Client.Any2EVMMessage memory any2EvmMessage
-    ) internal override onlyAllowSender {
+    ) internal override {
+        address senderAddress = abi.decode(any2EvmMessage.sender, (address));
+        if (allowSender != senderAddress) {
+            revert TransferNotAllow();
+        }
+
         lastReceivedMessageId = any2EvmMessage.messageId; // fetch the messageId
         lastReceivedData = any2EvmMessage.data;
 
@@ -47,7 +45,7 @@ contract RateReceiver is CCIPReceiver {
         emit MessageReceived(
             any2EvmMessage.messageId,
             any2EvmMessage.sourceChainSelector, // fetch the source chain identifier (aka selector)
-            abi.decode(any2EvmMessage.sender, (address)), // abi-decoding of the sender address,
+            senderAddress, // abi-decoding of the sender address,
             rateMsg.destination,
             rateMsg.rate
         );
