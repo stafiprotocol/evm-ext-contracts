@@ -20,8 +20,6 @@ contract RateSender is
 {
     using EnumerableSet for EnumerableSet.UintSet;
 
-    address public ccipRegister;
-
     IRouterClient public router;
 
     LinkTokenInterface public linkToken;
@@ -43,23 +41,14 @@ contract RateSender is
     bytes extraArgs;
     bool useExtraArgs;
 
-    modifier onlyCCIPRegister() {
-        if (ccipRegister != msg.sender) {
-            revert TransferNotAllow();
-        }
-        _;
-    }
-
     constructor(
         address _router,
         address _link,
-        address _ccipRegister,
         address _rethSource,
         address _rmaticSource
     ) {
         router = IRouterClient(_router);
         linkToken = LinkTokenInterface(_link);
-        ccipRegister = _ccipRegister;
         reth = IRETHRate(_rethSource);
         rmatic = IRMAITCRate(_rmaticSource);
         gasLimit = 600_000;
@@ -149,7 +138,7 @@ contract RateSender is
 
         if (balance == 0) revert NotEnoughBalance(0, 0);
 
-        linkToken.transfer(_to, balance);
+        require(linkToken.transfer(_to, balance), "Transfer failed");
     }
 
     /// @notice Sends data to receiver on the destination chain.
@@ -215,8 +204,31 @@ contract RateSender is
         external
         view
         override
-        returns (bool upkeepNeeded, bytes memory performData)
+        returns (bool upkeepNeeded, bytes memory /* performData */)
     {
+        uint taskType = getTaskType();
+        if (taskType > 0) {
+            return (true, bytes(""));
+        }
+        return (false, bytes(""));
+    }
+
+    /**
+     * @notice Called by the Chainlink Automation Network to update RETH and/or RMATIC rates.
+     */
+    function performUpkeep(bytes calldata /* performData */) external override {
+        uint taskType = getTaskType();
+        if (taskType == 1) {
+            sendRETHRate();
+        } else if (taskType == 2) {
+            sendMATICRate();
+        } else if (taskType == 3) {
+            sendRETHRate();
+            sendMATICRate();
+        }
+    }
+
+    function getTaskType() internal view returns (uint) {
         uint taskType = 0;
         uint256 newRate = reth.getExchangeRate();
         if (rethLatestRate != newRate && rethChainSelectors.length() > 0) {
@@ -226,28 +238,7 @@ contract RateSender is
         if (rmaticLatestRate != newRate && rmaticChainSelectors.length() > 0) {
             taskType += 2;
         }
-        if (taskType > 0) {
-            return (true, abi.encode(taskType));
-        }
-        return (false, bytes(""));
-    }
-
-    /**
-     * @notice Called by the Chainlink Automation Network to update RETH and/or RMATIC rates.
-     * @param performData The ABI-encoded integer representing the type of task to perform.
-     */
-    function performUpkeep(
-        bytes calldata performData
-    ) external override onlyCCIPRegister {
-        uint taskType = abi.decode(performData, (uint));
-        if (taskType == 1) {
-            sendRETHRate();
-        } else if (taskType == 2) {
-            sendMATICRate();
-        } else if (taskType == 3) {
-            sendRETHRate();
-            sendMATICRate();
-        }
+        return taskType;
     }
 
     function sendRETHRate() internal {
