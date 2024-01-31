@@ -71,6 +71,9 @@ contract RateSender is
     }
 
     function setGasLimit(uint256 _gasLimit) external onlyOwner {
+        if (_gasLimit < 200_000) {
+            revert GasLimitTooLow();
+        }
         gasLimit = _gasLimit;
     }
 
