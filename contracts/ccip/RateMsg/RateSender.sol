@@ -1,35 +1,33 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
-import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
-import "@chainlink/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
+import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
+import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "./interface/IRMAITCRate.sol";
-import "./interface/IRETHRate.sol";
-import "./interface/IRateSender.sol";
-import "./Types.sol";
+import {IRMAITCRate} from "./interface/IRMAITCRate.sol";
+import {IRETHRate} from "./interface/IRETHRate.sol";
+import {IRateSender} from "./interface/IRateSender.sol";
+import {RateMsg, RateInfo} from "./Types.sol";
 
 /// @title - A contract for sending rate data across chains.
-contract RateSender is
-    AutomationCompatibleInterface,
-    OwnerIsCreator,
-    IRateSender
-{
+contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSender {
     using EnumerableSet for EnumerableSet.UintSet;
+    using SafeERC20 for IERC20;
 
     IRouterClient public router;
 
-    LinkTokenInterface public linkToken;
+    IERC20 public linkToken;
 
     EnumerableSet.UintSet private rethChainSelectors;
     EnumerableSet.UintSet private rmaticChainSelectors;
 
-    mapping(uint => RateInfo) public rethRateInfoOf;
+    mapping(uint256 => RateInfo) public rethRateInfoOf;
 
-    mapping(uint => RateInfo) public rmaticRateInfoOf;
+    mapping(uint256 => RateInfo) public rmaticRateInfoOf;
 
     IRETHRate public reth;
     uint256 public rethLatestRate;
@@ -41,14 +39,9 @@ contract RateSender is
     bytes extraArgs;
     bool useExtraArgs;
 
-    constructor(
-        address _router,
-        address _link,
-        address _rethSource,
-        address _rmaticSource
-    ) {
+    constructor(address _router, address _link, address _rethSource, address _rmaticSource) {
         router = IRouterClient(_router);
-        linkToken = LinkTokenInterface(_link);
+        linkToken = IERC20(_link);
         reth = IRETHRate(_rethSource);
         rmatic = IRMAITCRate(_rmaticSource);
         gasLimit = 600_000;
@@ -66,24 +59,14 @@ contract RateSender is
         gasLimit = _gasLimit;
     }
 
-    function setExtraArgs(
-        bytes memory _extraArgs,
-        bool _useExtraArgs
-    ) external onlyOwner {
+    function setExtraArgs(bytes memory _extraArgs, bool _useExtraArgs) external onlyOwner {
         extraArgs = _extraArgs;
         useExtraArgs = _useExtraArgs;
     }
 
-    function addRETHRateInfo(
-        address _receiver,
-        address _rateProvider,
-        uint64 _selector
-    ) external onlyOwner {
+    function addRETHRateInfo(address _receiver, address _rateProvider, uint64 _selector) external onlyOwner {
         if (!rethChainSelectors.add(_selector)) revert SelectorExist();
-        rethRateInfoOf[_selector] = RateInfo({
-            receiver: _receiver,
-            destination: _rateProvider
-        });
+        rethRateInfoOf[_selector] = RateInfo({receiver: _receiver, destination: _rateProvider});
     }
 
     function removeRETHRateInfo(uint64 _selector) external onlyOwner {
@@ -91,28 +74,14 @@ contract RateSender is
         delete rethRateInfoOf[_selector];
     }
 
-    function updateRETHRateInfo(
-        address _receiver,
-        address _rateProvider,
-        uint64 _selector
-    ) external onlyOwner {
+    function updateRETHRateInfo(address _receiver, address _rateProvider, uint64 _selector) external onlyOwner {
         if (!rethChainSelectors.contains(_selector)) revert SelectorNotExist();
-        rethRateInfoOf[_selector] = RateInfo({
-            receiver: _receiver,
-            destination: _rateProvider
-        });
+        rethRateInfoOf[_selector] = RateInfo({receiver: _receiver, destination: _rateProvider});
     }
 
-    function addRMATICRateInfo(
-        address _receiver,
-        address _rateProvider,
-        uint64 _selector
-    ) external onlyOwner {
+    function addRMATICRateInfo(address _receiver, address _rateProvider, uint64 _selector) external onlyOwner {
         if (!rmaticChainSelectors.add(_selector)) revert SelectorExist();
-        rmaticRateInfoOf[_selector] = RateInfo({
-            receiver: _receiver,
-            destination: _rateProvider
-        });
+        rmaticRateInfoOf[_selector] = RateInfo({receiver: _receiver, destination: _rateProvider});
     }
 
     function removeRMATICRateInfo(uint64 _selector) external onlyOwner {
@@ -120,17 +89,11 @@ contract RateSender is
         delete rmaticRateInfoOf[_selector];
     }
 
-    function updateRMATICRateInfo(
-        address _receiver,
-        address _rateProvider,
-        uint64 _selector
-    ) external onlyOwner {
-        if (!rmaticChainSelectors.contains(_selector))
+    function updateRMATICRateInfo(address _receiver, address _rateProvider, uint64 _selector) external onlyOwner {
+        if (!rmaticChainSelectors.contains(_selector)) {
             revert SelectorNotExist();
-        rmaticRateInfoOf[_selector] = RateInfo({
-            receiver: _receiver,
-            destination: _rateProvider
-        });
+        }
+        rmaticRateInfoOf[_selector] = RateInfo({receiver: _receiver, destination: _rateProvider});
     }
 
     function withdrawLink(address _to) external onlyOwner {
@@ -145,11 +108,7 @@ contract RateSender is
     /// @param destinationChainSelector The identifier (aka selector) for the destination blockchain.
     /// @param receiver The address of the recipient on the destination blockchain.
     /// @param data The bytes data to be sent.
-    function sendMessage(
-        uint64 destinationChainSelector,
-        address receiver,
-        bytes memory data
-    ) internal {
+    function sendMessage(uint64 destinationChainSelector, address receiver, bytes memory data) internal {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
         bytes memory thisExtraArgs = Client._argsToBytes(
             // Additional arguments, setting gas limit and non-strict sequencing mode
@@ -170,28 +129,18 @@ contract RateSender is
         // Get the fee required to send the message
         uint256 fees = router.getFee(destinationChainSelector, evm2AnyMessage);
 
-        if (fees > linkToken.balanceOf(address(this)))
+        if (fees > linkToken.balanceOf(address(this))) {
             revert NotEnoughBalance(linkToken.balanceOf(address(this)), fees);
+        }
 
         // approve the Router to transfer LINK tokens on contract's behalf. It will spend the fees in LINK
         linkToken.approve(address(router), fees);
 
         // Send the message through the router and store the returned message ID
-        bytes32 messageId = router.ccipSend(
-            destinationChainSelector,
-            evm2AnyMessage
-        );
+        bytes32 messageId = router.ccipSend(destinationChainSelector, evm2AnyMessage);
 
         // Emit an event with message details
-        emit MessageSent(
-            messageId,
-            destinationChainSelector,
-            msg.sender,
-            receiver,
-            data,
-            address(linkToken),
-            fees
-        );
+        emit MessageSent(messageId, destinationChainSelector, msg.sender, receiver, data, address(linkToken), fees);
     }
 
     /**
@@ -200,13 +149,8 @@ contract RateSender is
      */
     function checkUpkeep(
         bytes calldata
-    )
-        external
-        view
-        override
-        returns (bool upkeepNeeded, bytes memory /* performData */)
-    {
-        uint taskType = getTaskType();
+    ) external view override returns (bool upkeepNeeded, bytes memory /* performData */) {
+        uint256 taskType = getTaskType();
         if (taskType > 0) {
             return (true, bytes(""));
         }
@@ -217,7 +161,7 @@ contract RateSender is
      * @notice Called by the Chainlink Automation Network to update RETH and/or RMATIC rates.
      */
     function performUpkeep(bytes calldata /* performData */) external override {
-        uint taskType = getTaskType();
+        uint256 taskType = getTaskType();
         if (taskType == 1) {
             sendRETHRate();
         } else if (taskType == 2) {
@@ -228,8 +172,8 @@ contract RateSender is
         }
     }
 
-    function getTaskType() internal view returns (uint) {
-        uint taskType = 0;
+    function getTaskType() internal view returns (uint256) {
+        uint256 taskType = 0;
         uint256 newRate = reth.getExchangeRate();
         if (rethLatestRate != newRate && rethChainSelectors.length() > 0) {
             taskType = 1;
@@ -247,16 +191,9 @@ contract RateSender is
             uint256 selector = rethChainSelectors.at(i);
             RateInfo memory rethRateInfo = rethRateInfoOf[selector];
 
-            RateMsg memory rateMsg = RateMsg({
-                destination: rethRateInfo.destination,
-                rate: rethLatestRate
-            });
+            RateMsg memory rateMsg = RateMsg({destination: rethRateInfo.destination, rate: rethLatestRate});
 
-            sendMessage(
-                uint64(selector),
-                rethRateInfo.receiver,
-                abi.encode(rateMsg)
-            );
+            sendMessage(uint64(selector), rethRateInfo.receiver, abi.encode(rateMsg));
         }
     }
 
@@ -266,16 +203,9 @@ contract RateSender is
             uint256 selector = rmaticChainSelectors.at(i);
             RateInfo memory rmaticRateInfo = rmaticRateInfoOf[selector];
 
-            RateMsg memory rateMsg = RateMsg({
-                destination: rmaticRateInfo.destination,
-                rate: rmaticLatestRate
-            });
+            RateMsg memory rateMsg = RateMsg({destination: rmaticRateInfo.destination, rate: rmaticLatestRate});
 
-            sendMessage(
-                uint64(selector),
-                rmaticRateInfo.receiver,
-                abi.encode(rateMsg)
-            );
+            sendMessage(uint64(selector), rmaticRateInfo.receiver, abi.encode(rateMsg));
         }
     }
 }

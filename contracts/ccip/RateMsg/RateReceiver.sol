@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
-import "./interface/ICCIPRateProvider.sol";
-import "./Types.sol";
+import {ICCIPRateProvider} from "./interface/ICCIPRateProvider.sol";
+import {RateMsg} from "./Types.sol";
 
 contract RateReceiver is CCIPReceiver {
     error TransferNotAllow();
@@ -28,9 +28,7 @@ contract RateReceiver is CCIPReceiver {
     }
 
     /// handle a received message
-    function _ccipReceive(
-        Client.Any2EVMMessage memory any2EvmMessage
-    ) internal override {
+    function _ccipReceive(Client.Any2EVMMessage memory any2EvmMessage) internal override {
         address senderAddress = abi.decode(any2EvmMessage.sender, (address));
         if (allowSender != senderAddress) {
             revert TransferNotAllow();
@@ -54,11 +52,7 @@ contract RateReceiver is CCIPReceiver {
     /// @notice Fetches the details of the last received message.
     /// @return messageId The ID of the last received message.
     /// @return data The last received bytes data.
-    function getLastReceivedMessageDetails()
-        external
-        view
-        returns (bytes32 messageId, bytes memory data)
-    {
+    function getLastReceivedMessageDetails() external view returns (bytes32 messageId, bytes memory data) {
         return (lastReceivedMessageId, lastReceivedData);
     }
 }
