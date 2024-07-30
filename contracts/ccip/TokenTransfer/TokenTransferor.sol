@@ -132,6 +132,34 @@ contract TokenTransferor is Initializable, AccessControlUpgradeable, PausableUpg
         emit TokenAllowlistUpdated(_token, _allowed);
     }
 
+    /// @notice Calculate the required fee for transferring tokens to another chain.
+    /// @dev This function simulates the token transfer process to calculate the fee,
+    ///      without actually performing the transfer. It uses the same logic as the
+    ///      transferTokens function to ensure fee consistency.
+    /// @param _destinationChainSelector The identifier (selector) for the destination blockchain.
+    /// @param _receiver The address of the recipient on the destination blockchain.
+    /// @param _token The address of the token to be transferred.
+    /// @param _amount The amount of tokens to be transferred.
+    /// @return fees The amount of native currency required as fee for the cross-chain transfer.
+    function getRequiredFee(
+        uint64 _destinationChainSelector,
+        address _receiver,
+        address _token,
+        uint256 _amount
+    )
+    external
+    view
+    returns (uint256)
+    {
+        // Create an EVM2AnyMessage struct in memory
+        Client.EVM2AnyMessage memory evm2AnyMessage = _buildCCIPMessage(_receiver, _token, _amount, address(0));
+
+        // Get the fee required to send the message
+        uint256 fees = s_router.getFee(_destinationChainSelector, evm2AnyMessage);
+
+        return fees;
+    }
+
     /// @notice Transfer tokens to receiver on the destination chain.
     /// @notice Pay in native gas such as ETH on Ethereum or MATIC on Polgon.
     /// @notice the token must be in the list of supported tokens.
@@ -145,10 +173,10 @@ contract TokenTransferor is Initializable, AccessControlUpgradeable, PausableUpg
         uint64 _destinationChainSelector,
         address _receiver,
         address _token,
-        uint256 _amount,
-        address _feeToken
+        uint256 _amount
     )
     external
+    payable
     nonReentrant
     validateReceiver(_receiver)
     onlyAllowlistedToken(_token)
@@ -167,11 +195,10 @@ contract TokenTransferor is Initializable, AccessControlUpgradeable, PausableUpg
         // Get the fee required to send the message
         uint256 fees = s_router.getFee(_destinationChainSelector, evm2AnyMessage);
 
-        // Check if the contract has enough balance to pay for the fees
-        if (fees > address(this).balance) {
-            revert NotEnoughBalance(address(this).balance, fees);
+        // Check if the user has sent enough native token to cover the fees
+        if (msg.value < fees) {
+            revert NotEnoughBalance(msg.value, fees);
         }
-
 
         IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
 
@@ -184,8 +211,14 @@ contract TokenTransferor is Initializable, AccessControlUpgradeable, PausableUpg
             evm2AnyMessage
         );
 
+        // Refund any excess native token sent by the user
+        if (msg.value > fees) {
+            (bool success,) = msg.sender.call{value: msg.value - fees}("");
+            require(success, "Refund failed");
+        }
+
         // Emit an event with message details
-        emit TokensTransferred(messageId, _destinationChainSelector, _receiver, _token, _amount, _feeToken, fees);
+        emit TokensTransferred(messageId, _destinationChainSelector, _receiver, _token, _amount, address(0), fees);
 
         return messageId;
     }
