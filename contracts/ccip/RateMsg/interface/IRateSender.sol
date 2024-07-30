@@ -2,50 +2,25 @@
 pragma solidity ^0.8.19;
 
 interface IRateSender {
-    error InitCompleted();
     error NotEnoughBalance(uint256 currentBalance, uint256 calculatedFees);
     error TransferNotAllow();
     error SelectorExist();
     error SelectorNotExist();
     error GasLimitTooLow();
 
+    enum RateSourceType {
+        RATE,
+        EXCHANGE_RATE
+    }
+
+    event TokenRateAdded(string tokenName, address rateSource, RateSourceType sourceType);
     event MessageSent(
-        bytes32 indexed messageId,
-        uint64 indexed destinationChainSelector,
-        address indexed sender,
+        bytes32 messageId,
+        uint64 destinationChainSelector,
+        address sender,
         address receiver,
         bytes data,
         address feeToken,
         uint256 fees
     );
-
-    function addRETHRateInfo(
-        address _receiver,
-        address _rateProvider,
-        uint64 _selector
-    ) external;
-
-    function removeRETHRateInfo(uint64 _selector) external;
-
-    function updateRETHRateInfo(
-        address _receiver,
-        address _rateProvider,
-        uint64 _selector
-    ) external;
-
-    function addRMATICRateInfo(
-        address _receiver,
-        address _rateProvider,
-        uint64 _selector
-    ) external;
-
-    function removeRMATICRateInfo(uint64 _selector) external;
-
-    function updateRMATICRateInfo(
-        address _receiver,
-        address _rateProvider,
-        uint64 _selector
-    ) external;
-
-    function withdrawLink(address _to) external;
 }
