@@ -49,6 +49,12 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
         useExtraArgs = false;
     }
 
+    // @notice Emitted when a token rate is added
+    // @param tokenName Name of the token
+    function updateRouter(address _router) external onlyOwner {
+        router = IRouterClient(_router);
+    }
+
     /// @notice Adds a new token rate to be tracked
     /// @param tokenName Name of the token
     /// @param rateSource Address of the rate source contract
