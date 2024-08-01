@@ -4,5 +4,28 @@
   "linkAddressSource": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
   "linkAddressDestination": "0x0b9d5D9136855f6FEc3c0993feE6E9CE8a297846",
   "initialRate": "1",
-  "adminAddress": "0xA0c16736E8d985Bd90937dEF4Fc94412F31e357A"
+  "rtokens": [
+    {
+      "name": "RATEToken",
+      "address": "",
+      "initialRate": "1",
+      "rateSourceType": "RATE",
+      "destination": {
+        "receiver": "0x1234567890123456789012345678901234567890",
+        "rateProvider": "0x0987654321098765432109876543210987654321",
+        "selector": "12532609583862916517"
+      }
+    },
+    {
+      "name": "EXCHANGE_RATEToken",
+      "address": "",
+      "initialRate": "1.5",
+      "rateSourceType": "EXCHANGE_RATE",
+      "destination": {
+        "receiver": "0x2345678901234567890123456789012345678901",
+        "rateProvider": "0x1098765432109876543210987654321098765432",
+        "selector": "13532609583862916518"
+      }
+    }
+  ]
 }

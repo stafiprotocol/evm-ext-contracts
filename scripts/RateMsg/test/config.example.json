@@ -3,6 +3,29 @@
     "routerAddressDestination": "0x...",
     "linkAddressSource": "0x...",
     "linkAddressDestination": "0x...",
-    "initialRate": "1",
-    "adminAddress": "0x...", // Optional, if not provided, the deployer address will be used
-}
+    "initialRate": "1", // Initial rate for the ccip rate provider
+    "rtokens": [
+      {
+        "name": "RATEToken",
+        "address": "", // When the address is empty, the script deploys mock's rtoken
+        "initialRate": "1",
+        "rateSourceType": "RATE",
+        "destination": {
+          "receiver": "0x...",
+          "rateProvider": "0x...",
+          "selector": "12532609583862916517"
+        }
+      },
+      {
+        "name": "EXCHANGE_RATEToken",
+        "address": "", // When the address is empty, the script deploys mock's rtoken
+        "initialRate": "1.5",
+        "rateSourceType": "EXCHANGE_RATE",
+        "destination": {
+          "receiver": "0x...",
+          "rateProvider": "0x...",
+          "selector": "13532609583862916518"
+        }
+      }
+    ]
+  }

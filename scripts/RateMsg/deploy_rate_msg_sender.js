@@ -1,4 +1,4 @@
-const {ethers, upgrades} = require("hardhat");
+const { ethers, upgrades } = require("hardhat");
 require('dotenv').config();
 
 async function main() {
@@ -28,18 +28,14 @@ async function main() {
         throw new Error("LINK token address not provided. Please provide it as a command line argument or set the LINK_ADDRESS environment variable.");
     }
 
-    // Get the admin address from command line arguments, environment variable, or use deployer address
-    let adminAddress = process.argv[4];
-    if (!adminAddress) {
-        adminAddress = process.env.ADMIN_ADDRESS || deployer.address;
-    }
+    adminAddress = deployer.address;
 
     console.log("Using router address:", routerAddress);
     console.log("Using LINK token address:", linkAddress);
     console.log("Using admin address:", adminAddress);
 
     console.log("Deploying RateSender...");
-    const rateSender = await upgrades.deployProxy(RateSender, [routerAddress, linkAddress, adminAddress], {initializer: 'initialize'});
+    const rateSender = await upgrades.deployProxy(RateSender, [routerAddress, linkAddress, adminAddress], { initializer: 'initialize' });
 
     // Wait for the transaction to be mined
     await rateSender.waitForDeployment();
