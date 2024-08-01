@@ -38,13 +38,13 @@ contract RateReceiver is CCIPReceiver {
         lastReceivedData = any2EvmMessage.data;
 
         RateMsg memory rateMsg = abi.decode(lastReceivedData, (RateMsg));
-        ICCIPRateProvider(rateMsg.destination).setRate(rateMsg.rate);
+        ICCIPRateProvider(rateMsg.dstRateProvider).setRate(rateMsg.rate);
 
         emit MessageReceived(
             any2EvmMessage.messageId,
             any2EvmMessage.sourceChainSelector, // fetch the source chain identifier (aka selector)
             senderAddress, // abi-decoding of the sender address,
-            rateMsg.destination,
+            rateMsg.dstRateProvider,
             rateMsg.rate
         );
     }

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-struct RateInfo {
+struct DestinationInfo {
     address receiver;
-    address destination;
+    address dstRateProvider;
 }
 
 struct RateMsg {
-    address destination;
+    address dstRateProvider;
     uint256 rate;
 }
