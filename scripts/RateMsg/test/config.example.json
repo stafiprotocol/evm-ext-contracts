@@ -1,0 +1,8 @@
+{
+    "routerAddressSource": "0x...",
+    "routerAddressDestination": "0x...",
+    "linkAddressSource": "0x...",
+    "linkAddressDestination": "0x...",
+    "initialRate": "1",
+    "adminAddress": "0x...", // Optional, if not provided, the deployer address will be used
+}

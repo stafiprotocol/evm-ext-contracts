@@ -25,7 +25,11 @@ module.exports = {
     etherscan: {
         apiKey: {
             avalancheFujiTestnet: "snowtrace",
+            sepolia: process.env.ETHERSCAN_API_KEY,
         }
+    },
+    sourcify: {
+        enabled: false,
     },
     networks: {
         hardhat: {
@@ -37,6 +41,10 @@ module.exports = {
         },
         fuji: {
             url: process.env.AVALANCHE_FUJI_RPC,
+            accounts: [process.env.PRIVATEKEY]
+        },
+        ethSepolia: {
+            url: process.env.SEPOLIA_RPC,
             accounts: [process.env.PRIVATEKEY]
         },
     }

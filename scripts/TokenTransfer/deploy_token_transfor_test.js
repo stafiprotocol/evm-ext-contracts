@@ -1,6 +1,6 @@
 const {ethers, upgrades} = require("hardhat");
 
-// fuji
+// eth sepolia
 async function main() {
     const [deployer] = await ethers.getSigners();
 
