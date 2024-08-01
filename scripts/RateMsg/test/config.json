@@ -8,24 +8,12 @@
     {
       "name": "RATEToken",
       "address": "",
-      "initialRate": "1",
-      "rateSourceType": "RATE",
-      "destination": {
-        "receiver": "0x1234567890123456789012345678901234567890",
-        "rateProvider": "0x0987654321098765432109876543210987654321",
-        "selector": "12532609583862916517"
-      }
+      "initialRate": "1"
     },
     {
       "name": "EXCHANGE_RATEToken",
       "address": "",
-      "initialRate": "1.5",
-      "rateSourceType": "EXCHANGE_RATE",
-      "destination": {
-        "receiver": "0x2345678901234567890123456789012345678901",
-        "rateProvider": "0x1098765432109876543210987654321098765432",
-        "selector": "13532609583862916518"
-      }
+      "initialRate": "1.5"
     }
   ]
 }

@@ -45,7 +45,7 @@ async function deployRateSender(deployer, routerAddress, linkAddress) {
   }
 
   const RateSender = await hre.ethers.getContractFactory("RateSender", deployer);
-  const adminAddress =  deployer.address;
+  const adminAddress = deployer.address;
 
   console.log("Deploying RateSender contract...");
   const rateSender = await hre.upgrades.deployProxy(RateSender, [routerAddress, linkAddress, adminAddress], { initializer: 'initialize' });
@@ -57,17 +57,6 @@ async function deployRateSender(deployer, routerAddress, linkAddress) {
   console.log(`RateSender deployed at ${deployedAddress}`);
 
   return deployedAddress;
-}
-
-function getRateSourceTypeEnum(rateSourceType) {
-  switch (rateSourceType.toUpperCase()) {
-    case 'RATE':
-      return 0;
-    case 'EXCHANGE_RATE':
-      return 1;
-    default:
-      throw new Error(`Invalid RateSourceType: ${rateSourceType}`);
-  }
 }
 
 async function main() {
@@ -96,36 +85,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Add RTokens to RateSender
-  console.log("Adding RTokens to RateSender...");
-  const RateSender = await hre.ethers.getContractFactory("RateSender", deployer);
-  const rateSender = await RateSender.attach(rateSenderAddress);
-
-  for (const rtoken of config.rtokens) {
-    console.log(`Adding ${rtoken.name} to RateSender...`);
-    try {
-      await rateSender.addRTokenInfo(
-        rtoken.name,
-        deployedRTokens[rtoken.name],
-        getRateSourceTypeEnum(rtoken.rateSourceType),
-        rtoken.destination.receiver,
-        rtoken.destination.rateProvider,
-        rtoken.destination.selector
-      );
-      console.log(`${rtoken.name} added to RateSender`);
-    } catch (error) {
-      console.error(`Error adding ${rtoken.name} to RateSender:`, error);
-    }
-  }
-
   const result = {
     rateSenderAddress,
     deployedRTokens
   };
-
-  // Log detailed results to stderr for human reading
-  console.error("Deployment complete. Detailed Result:");
-  console.error(JSON.stringify(result, null, 2));
 
   // Output only the necessary JSON to stdout for shell script parsing
   console.log(JSON.stringify(result));
