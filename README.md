@@ -15,13 +15,14 @@
 ### automatic deployment
 
 ```bash
-cp ./scripts/RateMsg/test/config.example.json ./scripts/RateMsg/test/config.json
+cp ./scripts/RateMsg/config.example.json ./scripts/RateMsg/config.json
 ```
 
 ```bash
-NETWORK_SOURCE=chain_source NETWORK_DESTINATION=chain_dst ./scripts/RateMsg/test/deploy_rate_msg_all.sh
+# chain_source, chain_dst Need to be configured in hardhat.config.js
+NETWORK_SOURCE=chain_source NETWORK_DESTINATION=chain_dst ./scripts/RateMsg/deploy_rate_msg_all.sh
 ```
 
-### Configure RateSender at csip automation
+### Configure RateSender at ccip automation
 
 [automation](https://automation.chain.link/)
