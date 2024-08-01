@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
-import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
 import {IERC20} from "@chainlink/contracts-ccip/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/IERC20.sol";
@@ -13,12 +15,15 @@ import {IRTokenRate} from "./interface/IRTokenRate.sol";
 import {IRTokenExchangeRate} from "./interface/IRTokenExchangeRate.sol";
 import {RateMsg, RateInfo} from "./Types.sol";
 
-/// @title RateSender - A contract for sending rate data across chains
+/// @title RateSender - An upgradeable contract for sending rate data across chains
 /// @notice This contract allows for the management and cross-chain transmission of token exchange rates
 /// @dev Implements Chainlink's CCIP for cross-chain communication and Automation for regular updates
-contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSender {
+contract RateSender is Initializable, AccessControlUpgradeable, PausableUpgradeable, AutomationCompatibleInterface, IRateSender {
     using EnumerableSet for EnumerableSet.UintSet;
     using SafeERC20 for IERC20;
+
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     /// @notice Struct to store information about a token's rate
     struct TokenRateInfo {
@@ -36,22 +41,49 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
     string[] public tokenNames;           // List of all token names added to the contract
 
     uint256 public gasLimit;              // Gas limit for cross-chain transactions
-    bytes extraArgs;                      // Extra arguments for CCIP messages
-    bool useExtraArgs;                    // Flag to determine whether to use extra arguments
+    bytes public extraArgs;               // Extra arguments for CCIP messages
+    bool public useExtraArgs;             // Flag to determine whether to use extra arguments
+    
 
-    /// @notice Contract constructor
-    /// @param _router Address of the Chainlink CCIP router
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the contract
+    /// @dev This function replaces the constructor for upgradeable contracts
+    /// @param _router Address of the CCIP router
     /// @param _link Address of the LINK token
-    constructor(address _router, address _link) {
+    /// @param _admin Address of the initial admin
+    function initialize(address _router, address _link, address _admin) public initializer {
+        __AccessControl_init();
+        __Pausable_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
+        _grantRole(PAUSER_ROLE, _admin);
+
         router = IRouterClient(_router);
         linkToken = IERC20(_link);
         gasLimit = 600_000;
         useExtraArgs = false;
     }
 
-    // @notice Emitted when a token rate is added
-    // @param tokenName Name of the token
-    function updateRouter(address _router) external onlyOwner {
+    /// @notice Pause the contract
+    /// @dev Only addresses with PAUSER_ROLE can call this function
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /// @notice Unpause the contract
+    /// @dev Only addresses with PAUSER_ROLE can call this function
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
+    }
+
+    /// @notice Sets a new router address
+    /// @param _router New router address
+    function setRouter(address _router) external onlyRole(ADMIN_ROLE) {
         router = IRouterClient(_router);
     }
 
@@ -59,7 +91,7 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
     /// @param tokenName Name of the token
     /// @param rateSource Address of the rate source contract
     /// @param sourceType Type of the rate source
-    function addTokenRate(string memory tokenName, address rateSource, RateSourceType sourceType) external onlyOwner {
+    function addTokenRate(string memory tokenName, address rateSource, RateSourceType sourceType) external onlyRole(ADMIN_ROLE) {
         require(tokenRateInfos[tokenName].rateSource == address(0), "Token rate already exists");
         tokenRateInfos[tokenName].rateSource = rateSource;
         tokenRateInfos[tokenName].sourceType = sourceType;
@@ -67,15 +99,9 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
         emit TokenRateAdded(tokenName, rateSource, sourceType);
     }
 
-    /// @notice Sets a new router address
-    /// @param _router New router address
-    function setRouter(address _router) external onlyOwner {
-        router = IRouterClient(_router);
-    }
-
     /// @notice Sets the gas limit for cross-chain transactions
     /// @param _gasLimit New gas limit
-    function setGasLimit(uint256 _gasLimit) external onlyOwner {
+    function setGasLimit(uint256 _gasLimit) external onlyRole(ADMIN_ROLE) {
         if (_gasLimit < 200_000) {
             revert GasLimitTooLow();
         }
@@ -85,7 +111,7 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
     /// @notice Sets extra arguments for CCIP messages
     /// @param _extraArgs New extra arguments
     /// @param _useExtraArgs Flag to use the extra arguments
-    function setExtraArgs(bytes memory _extraArgs, bool _useExtraArgs) external onlyOwner {
+    function setExtraArgs(bytes memory _extraArgs, bool _useExtraArgs) external onlyRole(ADMIN_ROLE) {
         extraArgs = _extraArgs;
         useExtraArgs = _useExtraArgs;
     }
@@ -100,7 +126,7 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
         address _receiver,
         address _rateProvider,
         uint64 _selector
-    ) external onlyOwner {
+    ) external onlyRole(ADMIN_ROLE) {
         TokenRateInfo storage tokenInfo = tokenRateInfos[tokenName];
         require(tokenInfo.rateSource != address(0), "Token rate not found");
         if (!tokenInfo.chainSelectors.add(_selector)) revert SelectorExist();
@@ -110,7 +136,7 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
     /// @notice Removes rate information for a specific token and chain
     /// @param tokenName Name of the token
     /// @param _selector Chain selector to remove
-    function removeRateInfo(string memory tokenName, uint64 _selector) external onlyOwner {
+    function removeRateInfo(string memory tokenName, uint64 _selector) external onlyRole(ADMIN_ROLE) {
         TokenRateInfo storage tokenInfo = tokenRateInfos[tokenName];
         if (!tokenInfo.chainSelectors.remove(_selector)) revert SelectorNotExist();
         delete rateInfoOf[tokenName][_selector];
@@ -126,7 +152,7 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
         address _receiver,
         address _rateProvider,
         uint64 _selector
-    ) external onlyOwner {
+    ) external onlyRole(ADMIN_ROLE) {
         TokenRateInfo storage tokenInfo = tokenRateInfos[tokenName];
         if (!tokenInfo.chainSelectors.contains(_selector)) revert SelectorNotExist();
         rateInfoOf[tokenName][_selector] = RateInfo({receiver: _receiver, destination: _rateProvider});
@@ -134,7 +160,7 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
 
     /// @notice Withdraws LINK tokens from the contract
     /// @param _to Address to send the LINK tokens to
-    function withdrawLink(address _to) external onlyOwner {
+    function withdrawLink(address _to) external onlyRole(ADMIN_ROLE) {
         uint256 balance = linkToken.balanceOf(address(this));
         if (balance == 0) revert NotEnoughBalance(0, 0);
         require(linkToken.transfer(_to, balance), "Transfer failed");
@@ -200,7 +226,7 @@ contract RateSender is AutomationCompatibleInterface, OwnerIsCreator, IRateSende
 
     /// @notice Chainlink Automation compatible function to perform upkeep
     /// @param performData Encoded data from checkUpkeep
-    function performUpkeep(bytes calldata performData) external override {
+    function performUpkeep(bytes calldata performData) external override whenNotPaused {
         string memory tokenName = abi.decode(performData, (string));
         sendTokenRate(tokenName);
     }
