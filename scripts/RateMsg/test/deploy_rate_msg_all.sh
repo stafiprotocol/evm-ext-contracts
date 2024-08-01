@@ -16,6 +16,7 @@ json_output=$(echo "$chain_source_result" | grep -o '{.*}' | tail -n 1)
 
 # 从JSON中提取地址
 rate_sender_address=$(echo "$json_output" | jq -r .rateSenderAddress)
+mock_rtoken_address=$(echo "$json_output" | jq -r .deployedRTokens)
 
 if [ -z "$rate_sender_address" ]; then
     echo "Error: Failed to get rate_sender_address" >&2

@@ -54,7 +54,16 @@ async function deployRateSender(deployer, routerAddress, linkAddress) {
   await rateSender.waitForDeployment();
 
   const deployedAddress = await rateSender.getAddress();
-  console.log(`RateSender deployed at ${deployedAddress}`);
+
+  // Verify the contract on Etherscan
+  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+    console.error(`Verifying RateSender for on Etherscan...`);
+    await hre.run("verify:verify", {
+      address: deployedAddress,
+      constructorArguments: [],
+    });
+    console.error(`MockRToken for ${name} verified on Etherscan`);
+  }
 
   return deployedAddress;
 }
@@ -64,15 +73,17 @@ async function main() {
   const deployer = (await hre.ethers.getSigners())[0];
   console.log(`Deployer address: ${deployer.address}`);
 
-  const deployedRTokens = {};
+  const deployedRTokens = [];
   for (const rtoken of config.rtokens) {
     console.log(`Processing rtoken: ${rtoken.name}`);
+    let address;
     if (!rtoken.address) {
-      deployedRTokens[rtoken.name] = await deployMockRToken(deployer, rtoken.name, rtoken.initialRate);
+      address = await deployMockRToken(deployer, rtoken.name, rtoken.initialRate);
     } else {
-      deployedRTokens[rtoken.name] = rtoken.address;
+      address = rtoken.address;
     }
-    console.log(`RToken ${rtoken.name} address: ${deployedRTokens[rtoken.name]}`);
+    deployedRTokens.push(address);
+    console.log(`RToken ${rtoken.name} address: ${address}`);
   }
 
   console.log("Deploying RateSender...");
