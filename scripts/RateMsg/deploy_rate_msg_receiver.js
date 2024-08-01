@@ -40,7 +40,7 @@ async function main() {
     console.log("RateReceiver deployed to:", deployedAddress);
 
     // Verify the contract on Etherscan
-    if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+    if (hre.network.name !== "hardhat" && hre.network.name !== "local") {
         console.log("Verifying contract on Etherscan...");
         await hre.run("verify:verify", {
             address: deployedAddress,

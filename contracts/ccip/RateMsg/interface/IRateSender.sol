@@ -13,8 +13,8 @@ interface IRateSender {
         EXCHANGE_RATE
     }
 
-    event TokenRateAdded(string tokenName, address rateSource, RateSourceType sourceType);
-    event RateInfoAdded(string tokenName, address receiver, address rateProvider, uint64 selector);
+    event RTokenInfoAdded(string tokenName, address rateSource, RateSourceType sourceType);
+    event RTokenInfoUpdated(string tokenName, address rateSource, RateSourceType sourceType);
     event MessageSent(
         bytes32 messageId,
         uint64 destinationChainSelector,
@@ -23,5 +23,14 @@ interface IRateSender {
         bytes data,
         address feeToken,
         uint256 fees
+    );
+    event RTokenInfoRemoved(string indexed tokenName);
+    event RTokenDstInfoAdded(string tokenName, address receiver, address rateProvider, uint64 selector);
+    event RTokenDstRemoved(string indexed tokenName, uint64 indexed selector);
+    event RTokenDstInfoUpdated(
+        string indexed tokenName,
+        address receiver,
+        address dstRateProvider,
+        uint64 indexed selector
     );
 }

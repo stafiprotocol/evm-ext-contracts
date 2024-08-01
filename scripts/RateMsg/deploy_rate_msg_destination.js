@@ -12,7 +12,7 @@ async function deployRateReceiver(deployer, routerAddress, allowedSenderAddress)
   const deployedAddress = await rateReceiver.getAddress();
 
   // Verify the contract on Etherscan
-  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "local") {
     console.log("Verifying RateReceiver on Etherscan...");
     await hre.run("verify:verify", {
       address: deployedAddress,
@@ -32,7 +32,7 @@ async function deployCCIPRateProvider(deployer, initialRate, receiverAddress) {
   const deployedAddress = await ccipRateProvider.getAddress();
 
   // Verify the contract on Etherscan
-  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "local") {
     console.log("Verifying CCIPRateProvider on Etherscan...");
     await hre.run("verify:verify", {
       address: deployedAddress,

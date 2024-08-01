@@ -19,7 +19,7 @@ async function main() {
     console.log("Initial rate set to:", hre.ethers.formatUnits(initialRate, 18));
 
     // Verify the contract on Etherscan
-    if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+    if (hre.network.name !== "hardhat" && hre.network.name !== "local") {
         console.log("Verifying contract on Etherscan...");
         await hre.run("verify:verify", {
             address: await mockRToken.getAddress(),

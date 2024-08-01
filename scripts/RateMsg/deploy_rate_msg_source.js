@@ -20,7 +20,7 @@ async function deployMockRToken(deployer, name, initialRate) {
   const deployedAddress = await mockRToken.getAddress();
 
   // Verify the contract on Etherscan
-  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "local") {
     console.log(`Verifying MockRToken for ${name} on Etherscan...`);
     await hre.run("verify:verify", {
       address: deployedAddress,
@@ -56,13 +56,13 @@ async function deployRateSender(deployer, routerAddress, linkAddress) {
   const deployedAddress = await rateSender.getAddress();
 
   // Verify the contract on Etherscan
-  if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
+  if (hre.network.name !== "hardhat" && hre.network.name !== "local") {
     console.log(`Verifying RateSender for on Etherscan...`);
     await hre.run("verify:verify", {
       address: deployedAddress,
       constructorArguments: [],
     });
-    console.log(`MockRToken for ${name} verified on Etherscan`);
+    console.log(`MockRToken verified on Etherscan`);
   }
 
   return deployedAddress;

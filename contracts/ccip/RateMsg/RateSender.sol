@@ -43,8 +43,9 @@ IRateSender
     IRouterClient public router; // Chainlink's CCIP router
     IERC20 public linkToken; // LINK token used for paying fees
 
-    mapping(string => RTokenInfo) private tokenInfos; // Mapping of token names to their token info
-    string[] public tokenNames; // List of all token names added to the contract
+    mapping(string => RTokenInfo) private tokenInfos;
+    string[] public tokenNames;
+    mapping(string => uint256) private tokenNameToIndex;
 
     address public s_forwarderAddress; // Address of the forwarder contract, Configure after csip automation registration
     uint256 public gasLimit; // Gas limit for cross-chain transactions
@@ -139,66 +140,39 @@ IRateSender
         address _dstRateProvider,
         uint64 _selector
     ) external onlyRole(ADMIN_ROLE) {
-        // Check if the token rate already exists
         require(tokenInfos[tokenName].rateSource == address(0), "Token rate already exists");
 
-        // Add token rate information
         tokenInfos[tokenName].rateSource = rateSource;
         tokenInfos[tokenName].sourceType = sourceType;
         tokenNames.push(tokenName);
+        tokenNameToIndex[tokenName] = tokenNames.length - 1;
 
-        // Add rate info for the specific chain
         if (!tokenInfos[tokenName].chainSelectors.add(_selector)) revert SelectorExist();
         DestinationInfo memory dstInfo = DestinationInfo({receiver: _receiver, dstRateProvider: _dstRateProvider});
         tokenInfos[tokenName].dstInfoOf[_selector] = dstInfo;
 
-        emit TokenRateAdded(tokenName, rateSource, sourceType);
-        emit RateInfoAdded(tokenName, _receiver, _dstRateProvider, _selector);
+        emit RTokenInfoAdded(tokenName, rateSource, sourceType);
+        emit RTokenDstInfoAdded(tokenName, _receiver, _dstRateProvider, _selector);
     }
 
-    /// @notice Removes rate information for a specific token and chain
-    /// @param tokenName Name of the token
-    /// @param _selector Chain selector to remove
-    function removeRTokenDstInfo(string memory tokenName, uint64 _selector) external onlyRole(ADMIN_ROLE) {
-        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
-        if (!tokenInfo.chainSelectors.remove(_selector)) revert SelectorNotExist();
-        delete tokenInfo.dstInfoOf[_selector];
-        if (tokenInfo.chainSelectors.length() == 0) {
-            removeRTokenInfo(tokenName);
-        }
-    }
 
-    // @notice Removes rate information for a specific token
+    /// @notice Updates rate information for a specific token
     /// @param tokenName Name of the token
-    function removeRTokenInfo(string memory tokenName) public onlyRole(ADMIN_ROLE) {
-        delete tokenInfos[tokenName];
-        for (uint256 i = 0; i < tokenNames.length; i++) {
-            if (keccak256(abi.encodePacked(tokenNames[i])) == keccak256(abi.encodePacked(tokenName))) {
-                tokenNames[i] = tokenNames[tokenNames.length - 1];
-                tokenNames.pop();
-                break;
-            }
-        }
-    }
-
-    /// @notice Updates rate information for a specific token and chain
-    /// @param tokenName Name of the token
-    /// @param _receiver New receiver address
-    /// @param _dstRateProvider New rate provider address
-    /// @param _selector Chain selector to update
+    /// @param rateSource New rate source address
+    /// @param sourceType New rate source type
     function updateRTokenInfo(
         string memory tokenName,
         address rateSource,
-        RateSourceType sourceType,
-        address _receiver,
-        address _dstRateProvider,
-        uint64 _selector
+        RateSourceType sourceType
     ) external onlyRole(ADMIN_ROLE) {
+        require(tokenNameToIndex[tokenName] < tokenNames.length, "Token does not exist");
+
         RTokenInfo storage tokenInfo = tokenInfos[tokenName];
-        if (!tokenInfo.chainSelectors.contains(_selector)) revert SelectorNotExist();
+
         tokenInfo.rateSource = rateSource;
         tokenInfo.sourceType = sourceType;
-        tokenInfo.dstInfoOf[_selector] = DestinationInfo({receiver: _receiver, dstRateProvider: _dstRateProvider});
+
+        emit RTokenInfoUpdated(tokenName, rateSource, sourceType);
     }
 
     /// @notice Retrieves the token rate information for a given token
@@ -214,6 +188,95 @@ IRateSender
             latestRate: info.latestRate,
             chainSelectors: info.chainSelectors.values()
         });
+    }
+
+    // @notice Removes rate information for a specific token
+    /// @param tokenName Name of the token
+    function removeRTokenInfo(string memory tokenName) public onlyRole(ADMIN_ROLE) {
+        require(tokenInfos[tokenName].rateSource != address(0), "Token rate does not exist");
+
+        // Clean up all related data
+        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
+        uint256[] memory selectors = tokenInfo.chainSelectors.values();
+        for (uint256 i = 0; i < selectors.length; i++) {
+            delete tokenInfo.dstInfoOf[selectors[i]];
+        }
+        delete tokenInfos[tokenName];
+
+        // Remove from tokenNames array
+        uint256 index = tokenNameToIndex[tokenName];
+        require(index < tokenNames.length && keccak256(abi.encodePacked(tokenNames[index])) == keccak256(abi.encodePacked(tokenName)), "Token not found in array");
+
+        tokenNames[index] = tokenNames[tokenNames.length - 1];
+        tokenNames.pop();
+
+        // Update the index for the moved token
+        if (tokenNames.length > 0 && index < tokenNames.length) {
+            tokenNameToIndex[tokenNames[index]] = index;
+        }
+
+        // Clean up the removed token's index
+        delete tokenNameToIndex[tokenName];
+
+        emit RTokenInfoRemoved(tokenName);
+    }
+
+
+    /// @notice Removes rate information for a specific token and chain
+    /// @param tokenName Name of the token
+    /// @param _selector Chain selector to remove
+    function removeRTokenDstInfo(string memory tokenName, uint64 _selector) external onlyRole(ADMIN_ROLE) {
+        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
+        if (!tokenInfo.chainSelectors.remove(_selector)) revert SelectorNotExist();
+        delete tokenInfo.dstInfoOf[_selector];
+        emit RTokenDstRemoved(tokenName, _selector);
+    }
+
+    /// @notice Adds destination information for a token
+    /// @param tokenName Name of the token
+    /// @param _receiver Receiver address on the destination chain
+    /// @param _dstRateProvider Rate provider address on the destination chain
+    /// @param _selector Chain selector for the destination chain
+    function addRTokenDstInfo(
+        string memory tokenName,
+        address _receiver,
+        address _dstRateProvider,
+        uint64 _selector
+    ) external onlyRole(ADMIN_ROLE) {
+        require(tokenInfos[tokenName].rateSource != address(0), "Token does not exist");
+        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
+        require(!tokenInfo.chainSelectors.contains(_selector), "Selector already exists");
+
+        tokenInfo.chainSelectors.add(_selector);
+        tokenInfo.dstInfoOf[_selector] = DestinationInfo({
+            receiver: _receiver,
+            dstRateProvider: _dstRateProvider
+        });
+
+        emit RTokenDstInfoAdded(tokenName, _receiver, _dstRateProvider, _selector);
+    }
+
+    /// @notice Updates destination information for a token
+    /// @param tokenName Name of the token
+    /// @param _receiver New receiver address on the destination chain
+    /// @param _dstRateProvider New rate provider address on the destination chain
+    /// @param _selector Chain selector for the destination chain
+    function updateRTokenDstInfo(
+        string memory tokenName,
+        address _receiver,
+        address _dstRateProvider,
+        uint64 _selector
+    ) external onlyRole(ADMIN_ROLE) {
+        require(tokenNameToIndex[tokenName] < tokenNames.length, "Token does not exist");
+        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
+        require(tokenInfo.chainSelectors.contains(_selector), "Selector does not exist");
+
+        tokenInfo.dstInfoOf[_selector] = DestinationInfo({
+            receiver: _receiver,
+            dstRateProvider: _dstRateProvider
+        });
+
+        emit RTokenDstInfoUpdated(tokenName, _receiver, _dstRateProvider, _selector);
     }
 
     // @notice Retrieves the rate information for a specific token and chain
@@ -283,6 +346,9 @@ IRateSender
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         for (uint i = 0; i < tokenNames.length; i++) {
             RTokenInfo storage tokenInfo = tokenInfos[tokenNames[i]];
+            if (tokenInfo.rateSource == address(0)) {
+                continue;
+            }
             uint256 newRate = getRate(tokenNames[i]);
             if (tokenInfo.latestRate != newRate && tokenInfo.chainSelectors.length() > 0) {
                 return (true, abi.encode(tokenNames[i]));
