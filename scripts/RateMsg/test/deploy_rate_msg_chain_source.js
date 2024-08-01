@@ -6,14 +6,14 @@ const path = require('path');
 let config;
 try {
   config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-  console.error("Config loaded:", config);
+  console.log("Config loaded:", config);
 } catch (error) {
   console.error("Error loading config:", error);
   process.exit(1);
 }
 
 async function deployMockRToken(deployer, name, initialRate) {
-  console.error(`Deploying MockRToken for ${name}...`);
+  console.log(`Deploying MockRToken for ${name}...`);
   const MockRToken = await hre.ethers.getContractFactory("MockRToken", deployer);
   const mockRToken = await MockRToken.deploy(hre.ethers.parseUnits(initialRate, 18));
   await mockRToken.waitForDeployment();
@@ -21,12 +21,12 @@ async function deployMockRToken(deployer, name, initialRate) {
 
   // Verify the contract on Etherscan
   if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
-    console.error(`Verifying MockRToken for ${name} on Etherscan...`);
+    console.log(`Verifying MockRToken for ${name} on Etherscan...`);
     await hre.run("verify:verify", {
       address: deployedAddress,
       constructorArguments: [hre.ethers.parseUnits(initialRate, 18)],
     });
-    console.error(`MockRToken for ${name} verified on Etherscan`);
+    console.log(`MockRToken for ${name} verified on Etherscan`);
   }
 
   return deployedAddress;
@@ -57,12 +57,12 @@ async function deployRateSender(deployer, routerAddress, linkAddress) {
 
   // Verify the contract on Etherscan
   if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
-    console.error(`Verifying RateSender for on Etherscan...`);
+    console.log(`Verifying RateSender for on Etherscan...`);
     await hre.run("verify:verify", {
       address: deployedAddress,
       constructorArguments: [],
     });
-    console.error(`MockRToken for ${name} verified on Etherscan`);
+    console.log(`MockRToken for ${name} verified on Etherscan`);
   }
 
   return deployedAddress;

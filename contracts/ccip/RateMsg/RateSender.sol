@@ -50,6 +50,13 @@ contract RateSender is
     bytes public extraArgs; // Extra arguments for CCIP messages
     bool public useExtraArgs; // Flag to determine whether to use extra arguments
 
+    struct TokenRateInfoView {
+        address rateSource;
+        RateSourceType sourceType;
+        uint256 latestRate;
+        uint256[] chainSelectors;
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -139,6 +146,21 @@ contract RateSender is
 
         emit TokenRateAdded(tokenName, rateSource, sourceType);
         emit RateInfoAdded(tokenName, _receiver, _rateProvider, _selector);
+    }
+
+    /// @notice Retrieves the token rate information for a given token
+    /// @dev This function returns a view of the TokenRateInfo without the mapping
+    /// @param tokenName The name of the token to retrieve information for
+    /// @return A TokenRateInfoView struct containing the token's rate information
+    function getRTokenInfo(string memory tokenName) external view returns (TokenRateInfoView memory) {
+        TokenRateInfo storage info = tokenRateInfos[tokenName];
+        return
+            TokenRateInfoView({
+                rateSource: info.rateSource,
+                sourceType: info.sourceType,
+                latestRate: info.latestRate,
+                chainSelectors: info.chainSelectors.values()
+            });
     }
 
     /// @notice Removes rate information for a specific token and chain

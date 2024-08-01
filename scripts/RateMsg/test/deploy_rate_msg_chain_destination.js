@@ -5,7 +5,7 @@ const path = require('path');
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 
 async function deployRateReceiver(deployer, routerAddress, allowedSenderAddress) {
-  console.error(`Deploying RateReceiver...`);
+  console.log(`Deploying RateReceiver...`);
   const RateReceiver = await hre.ethers.getContractFactory("RateReceiver", deployer);
   const rateReceiver = await RateReceiver.deploy(routerAddress, allowedSenderAddress);
   await rateReceiver.waitForDeployment();
@@ -13,19 +13,19 @@ async function deployRateReceiver(deployer, routerAddress, allowedSenderAddress)
 
   // Verify the contract on Etherscan
   if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
-    console.error("Verifying RateReceiver on Etherscan...");
+    console.log("Verifying RateReceiver on Etherscan...");
     await hre.run("verify:verify", {
       address: deployedAddress,
       constructorArguments: [routerAddress, allowedSenderAddress],
     });
-    console.error("RateReceiver verified on Etherscan");
+    console.log("RateReceiver verified on Etherscan");
   }
 
   return deployedAddress;
 }
 
 async function deployCCIPRateProvider(deployer, initialRate, receiverAddress) {
-  console.error(`Deploying CCIPRateProvider...`);
+  console.log(`Deploying CCIPRateProvider...`);
   const CCIPRateProvider = await hre.ethers.getContractFactory("CCIPRateProvider", deployer);
   const ccipRateProvider = await CCIPRateProvider.deploy(initialRate, receiverAddress);
   await ccipRateProvider.waitForDeployment();
@@ -33,7 +33,7 @@ async function deployCCIPRateProvider(deployer, initialRate, receiverAddress) {
 
   // Verify the contract on Etherscan
   if (hre.network.name !== "hardhat" && hre.network.name !== "localhost") {
-    console.error("Verifying CCIPRateProvider on Etherscan...");
+    console.log("Verifying CCIPRateProvider on Etherscan...");
     await hre.run("verify:verify", {
       address: deployedAddress,
       constructorArguments: [initialRate, receiverAddress],
