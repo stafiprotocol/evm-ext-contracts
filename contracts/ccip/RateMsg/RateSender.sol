@@ -156,6 +156,9 @@ IRateSender
         RTokenInfo storage tokenInfo = tokenInfos[tokenName];
         if (!tokenInfo.chainSelectors.remove(_selector)) revert SelectorNotExist();
         delete tokenInfo.dstInfoOf[_selector];
+        if (tokenInfo.chainSelectors.length() == 0) {
+            delete tokenInfos[tokenName];
+        }
     }
 
     // @notice Removes rate information for a specific token
