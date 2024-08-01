@@ -19,11 +19,11 @@ import {RateMsg, RateInfo} from "./Types.sol";
 /// @notice This contract allows for the management and cross-chain transmission of token exchange rates
 /// @dev Implements Chainlink's CCIP for cross-chain communication and Automation for regular updates
 contract RateSender is
-    Initializable,
-    AccessControlUpgradeable,
-    PausableUpgradeable,
-    AutomationCompatibleInterface,
-    IRateSender
+Initializable,
+AccessControlUpgradeable,
+PausableUpgradeable,
+AutomationCompatibleInterface,
+IRateSender
 {
     using EnumerableSet for EnumerableSet.UintSet;
     using SafeERC20 for IERC20;
@@ -156,11 +156,16 @@ contract RateSender is
         TokenRateInfo storage info = tokenRateInfos[tokenName];
         return
             TokenRateInfoView({
-                rateSource: info.rateSource,
-                sourceType: info.sourceType,
-                latestRate: info.latestRate,
-                chainSelectors: info.chainSelectors.values()
-            });
+            rateSource: info.rateSource,
+            sourceType: info.sourceType,
+            latestRate: info.latestRate,
+            chainSelectors: info.chainSelectors.values()
+        });
+    }
+
+    function getRTokenDstInfo(string memory tokenName, uint64 _selector) external view returns (RateInfo memory) {
+        RateInfo storage info = rateInfoOf[tokenName][_selector];
+        return info;
     }
 
     /// @notice Removes rate information for a specific token and chain
@@ -229,7 +234,7 @@ contract RateSender is
     /// @notice Internal function to get the current rate for a token
     /// @param tokenName Name of the token
     /// @return Current rate of the token
-    function getRate(string memory tokenName) internal view returns (uint256) {
+    function getRate(string memory tokenName) public view returns (uint256) {
         TokenRateInfo storage tokenInfo = tokenRateInfos[tokenName];
         if (tokenInfo.sourceType == RateSourceType.RATE) {
             return IRTokenRate(tokenInfo.rateSource).getRate();
