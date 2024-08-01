@@ -46,6 +46,7 @@ IRateSender
     mapping(string => RTokenInfo) private tokenInfos; // Mapping of token names to their token info
     string[] public tokenNames; // List of all token names added to the contract
 
+    address public s_forwarderAddress; // Address of the forwarder contract, Configure after csip automation registration
     uint256 public gasLimit; // Gas limit for cross-chain transactions
     bytes public extraArgs; // Extra arguments for CCIP messages
     bool public useExtraArgs; // Flag to determine whether to use extra arguments
@@ -97,6 +98,12 @@ IRateSender
     /// @param _router New router address
     function setRouter(address _router) external onlyRole(ADMIN_ROLE) {
         router = IRouterClient(_router);
+    }
+
+    // @notice Sets the forwarder address
+    /// @param _forwarderAddress New forwarder address
+    function setForwarderAddress(address _forwarderAddress) external onlyRole(ADMIN_ROLE) {
+        s_forwarderAddress = _forwarderAddress;
     }
 
     /// @notice Sets the gas limit for cross-chain transactions
@@ -280,6 +287,9 @@ IRateSender
     /// @notice Chainlink Automation compatible function to perform upkeep
     /// @param performData Encoded data from checkUpkeep
     function performUpkeep(bytes calldata performData) external override whenNotPaused {
+        if (s_forwarderAddress != address(0) && msg.sender != s_forwarderAddress) {
+            revert TransferNotAllow();
+        }
         string memory tokenName = abi.decode(performData, (string));
         sendTokenRate(tokenName);
     }
