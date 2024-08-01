@@ -14,6 +14,7 @@ interface IRateSender {
     }
 
     event TokenRateAdded(string tokenName, address rateSource, RateSourceType sourceType);
+    event RateInfoAdded(string tokenName, address receiver, address rateProvider, uint64 selector);
     event MessageSent(
         bytes32 messageId,
         uint64 destinationChainSelector,
