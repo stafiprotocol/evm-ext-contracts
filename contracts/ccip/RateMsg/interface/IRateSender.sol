@@ -7,6 +7,8 @@ interface IRateSender {
     error SelectorExist();
     error SelectorNotExist();
     error GasLimitTooLow();
+    error InvalidContract(string param);
+    error InvalidAddress(string param);
 
     enum RateSourceType {
         RATE,

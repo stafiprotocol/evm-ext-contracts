@@ -70,6 +70,10 @@ IRateSender
     /// @param _link Address of the LINK token
     /// @param _admin Address of the initial admin
     function initialize(address _router, address _link, address _admin) public initializer {
+        if (_admin == address(0)) revert InvalidAddress("admin");
+        if (!_isContract(_router)) revert InvalidContract("router");
+        if (!_isContract(_link)) revert InvalidContract("link");
+
         __AccessControl_init();
         __Pausable_init();
 
@@ -127,23 +131,27 @@ IRateSender
     /// @notice Adds a new token rate and its associated information for a specific chain
     /// @dev This function combines the functionality of adding a token rate and its chain-specific information
     /// @param tokenName The name of the token to add
-    /// @param rateSource The address of the contract providing the rate for this token
-    /// @param sourceType The type of the rate source (RATE(0) or EXCHANGE_RATE(1))
+    /// @param _rateSource The address of the contract providing the rate for this token
+    /// @param _sourceType The type of the rate source (RATE(0) or EXCHANGE_RATE(1))
     /// @param _receiver The address of the receiver contract on the destination chain
     /// @param _dstRateProvider The address of the rate provider contract on the destination chain
     /// @param _selector The chain selector for the destination chain
     function addRTokenInfo(
         string memory tokenName,
-        address rateSource,
-        RateSourceType sourceType,
+        address _rateSource,
+        RateSourceType _sourceType,
         address _receiver,
         address _dstRateProvider,
         uint64 _selector
     ) external onlyRole(ADMIN_ROLE) {
         require(tokenInfos[tokenName].rateSource == address(0), "Token rate already exists");
 
-        tokenInfos[tokenName].rateSource = rateSource;
-        tokenInfos[tokenName].sourceType = sourceType;
+        if (!_isContract(_receiver)) revert InvalidContract("receiver");
+        if (!_isContract(_rateSource)) revert InvalidContract("rateSource");
+        if (!_isContract(_dstRateProvider)) revert InvalidContract("dstRateProvider");
+
+        tokenInfos[tokenName].rateSource = _rateSource;
+        tokenInfos[tokenName].sourceType = _sourceType;
         tokenNames.push(tokenName);
         tokenNameToIndex[tokenName] = tokenNames.length - 1;
 
@@ -151,28 +159,29 @@ IRateSender
         DestinationInfo memory dstInfo = DestinationInfo({receiver: _receiver, dstRateProvider: _dstRateProvider});
         tokenInfos[tokenName].dstInfoOf[_selector] = dstInfo;
 
-        emit RTokenInfoAdded(tokenName, rateSource, sourceType);
+        emit RTokenInfoAdded(tokenName, _rateSource, _sourceType);
         emit RTokenDstInfoAdded(tokenName, _receiver, _dstRateProvider, _selector);
     }
 
-
     /// @notice Updates rate information for a specific token
     /// @param tokenName Name of the token
-    /// @param rateSource New rate source address
-    /// @param sourceType New rate source type
+    /// @param _rateSource New rate source address
+    /// @param _sourceType New rate source type
     function updateRTokenInfo(
         string memory tokenName,
-        address rateSource,
-        RateSourceType sourceType
+        address _rateSource,
+        RateSourceType _sourceType
     ) external onlyRole(ADMIN_ROLE) {
         require(tokenNameToIndex[tokenName] < tokenNames.length, "Token does not exist");
 
+        if (!_isContract(_rateSource)) revert InvalidContract("rateSource");
+
         RTokenInfo storage tokenInfo = tokenInfos[tokenName];
 
-        tokenInfo.rateSource = rateSource;
-        tokenInfo.sourceType = sourceType;
+        tokenInfo.rateSource = _rateSource;
+        tokenInfo.sourceType = _sourceType;
 
-        emit RTokenInfoUpdated(tokenName, rateSource, sourceType);
+        emit RTokenInfoUpdated(tokenName, _rateSource, _sourceType);
     }
 
     /// @notice Retrieves the token rate information for a given token
@@ -221,7 +230,6 @@ IRateSender
         emit RTokenInfoRemoved(tokenName);
     }
 
-
     /// @notice Removes rate information for a specific token and chain
     /// @param tokenName Name of the token
     /// @param _selector Chain selector to remove
@@ -243,6 +251,9 @@ IRateSender
         address _dstRateProvider,
         uint64 _selector
     ) external onlyRole(ADMIN_ROLE) {
+        if (!_isContract(_receiver)) revert InvalidContract("receiver");
+        if (!_isContract(_dstRateProvider)) revert InvalidContract("dstRateProvider");
+
         require(tokenInfos[tokenName].rateSource != address(0), "Token does not exist");
         RTokenInfo storage tokenInfo = tokenInfos[tokenName];
         require(!tokenInfo.chainSelectors.contains(_selector), "Selector already exists");
@@ -381,5 +392,14 @@ IRateSender
 
             sendMessage(uint64(selector), dstInfo.receiver, abi.encode(rateMsg));
         }
+    }
+
+    // Helper function to check if an address is a contract
+    function _isContract(address _addr) private view returns (bool) {
+        uint32 size;
+        assembly {
+            size := extcodesize(_addr)
+        }
+        return (size > 0);
     }
 }
