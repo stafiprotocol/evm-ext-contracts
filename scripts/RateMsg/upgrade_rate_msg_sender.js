@@ -1,4 +1,5 @@
-const { ethers, upgrades } = require("hardhat");
+const {ethers, upgrades} = require("hardhat");
+const hre = require("hardhat");
 require('dotenv').config();
 
 async function main() {
@@ -8,11 +9,7 @@ async function main() {
     // Get the ContractFactory of the new implementation
     const RateSenderV2 = await ethers.getContractFactory("RateSender");
 
-    // Get the PROXY_ADDRESS from command line arguments or environment variable
-    // let PROXY_ADDRESS = process.argv[2];
-    // if (!PROXY_ADDRESS) {
-    PROXY_ADDRESS = process.env.PROXY_ADDRESS;
-    // }
+    const PROXY_ADDRESS = process.env.PROXY_ADDRESS;
 
     if (!PROXY_ADDRESS) {
         throw new Error("Proxy address not provided. Please set the PROXY_ADDRESS environment variable.");
@@ -27,20 +24,22 @@ async function main() {
     console.log("RateSender upgraded at address:", await upgradedRateSender.getAddress());
 
     // Verify the new implementation on Etherscan
-    if (process.env.ETHERSCAN_API_KEY) {
-        console.log("Verifying new implementation on Etherscan...");
-        try {
-            const implementationAddress = await upgrades.erc1967.getImplementationAddress(PROXY_ADDRESS);
-            await hre.run("verify:verify", {
-                address: implementationAddress,
-                constructorArguments: [],
-            });
-            console.log("New implementation verified on Etherscan");
-        } catch (error) {
-            console.error("Error verifying contract:", error);
+    if (hre.network.name !== "hardhat" && hre.network.name !== "local") {
+        if (process.env.ETHERSCAN_API_KEY) {
+            console.log("Verifying new implementation on Etherscan...");
+            try {
+                const implementationAddress = await upgrades.erc1967.getImplementationAddress(PROXY_ADDRESS);
+                await hre.run("verify:verify", {
+                    address: implementationAddress,
+                    constructorArguments: [],
+                });
+                console.log("New implementation verified on Etherscan");
+            } catch (error) {
+                console.error("Error verifying contract:", error);
+            }
+        } else {
+            console.log("Skipping Etherscan verification due to missing API key");
         }
-    } else {
-        console.log("Skipping Etherscan verification due to missing API key");
     }
 }
 
