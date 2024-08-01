@@ -152,10 +152,16 @@ IRateSender
     /// @notice Removes rate information for a specific token and chain
     /// @param tokenName Name of the token
     /// @param _selector Chain selector to remove
-    function removeRTokenInfo(string memory tokenName, uint64 _selector) external onlyRole(ADMIN_ROLE) {
+    function removeRTokenDstInfo(string memory tokenName, uint64 _selector) external onlyRole(ADMIN_ROLE) {
         RTokenInfo storage tokenInfo = tokenInfos[tokenName];
         if (!tokenInfo.chainSelectors.remove(_selector)) revert SelectorNotExist();
         delete tokenInfo.dstInfoOf[_selector];
+    }
+
+    // @notice Removes rate information for a specific token
+    /// @param tokenName Name of the token
+    function removeRTokenInfo(string memory tokenName) external onlyRole(ADMIN_ROLE) {
+        delete tokenInfos[tokenName];
     }
 
     /// @notice Updates rate information for a specific token and chain
