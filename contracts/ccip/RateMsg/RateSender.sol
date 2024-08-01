@@ -164,14 +164,21 @@ IRateSender
         if (!tokenInfo.chainSelectors.remove(_selector)) revert SelectorNotExist();
         delete tokenInfo.dstInfoOf[_selector];
         if (tokenInfo.chainSelectors.length() == 0) {
-            delete tokenInfos[tokenName];
+            removeRTokenInfo(tokenName);
         }
     }
 
     // @notice Removes rate information for a specific token
     /// @param tokenName Name of the token
-    function removeRTokenInfo(string memory tokenName) external onlyRole(ADMIN_ROLE) {
+    function removeRTokenInfo(string memory tokenName) public onlyRole(ADMIN_ROLE) {
         delete tokenInfos[tokenName];
+        for (uint256 i = 0; i < tokenNames.length; i++) {
+            if (keccak256(abi.encodePacked(tokenNames[i])) == keccak256(abi.encodePacked(tokenName))) {
+                tokenNames[i] = tokenNames[tokenNames.length - 1];
+                tokenNames.pop();
+                break;
+            }
+        }
     }
 
     /// @notice Updates rate information for a specific token and chain
