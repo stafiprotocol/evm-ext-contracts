@@ -19,11 +19,11 @@ import {RateMsg, DestinationInfo} from "./Types.sol";
 /// @notice This contract allows for the management and cross-chain transmission of token exchange rates
 /// @dev Implements Chainlink's CCIP for cross-chain communication and Automation for regular updates
 contract RateSender is
-    Initializable,
-    AccessControlUpgradeable,
-    PausableUpgradeable,
-    AutomationCompatibleInterface,
-    IRateSender
+Initializable,
+AccessControlUpgradeable,
+PausableUpgradeable,
+AutomationCompatibleInterface,
+IRateSender
 {
     using EnumerableSet for EnumerableSet.UintSet;
     using SafeERC20 for IERC20;
@@ -32,7 +32,7 @@ contract RateSender is
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     /// @notice Struct to store information about a token's rate
-    struct TokenRateInfo {
+    struct RTokenInfo {
         address rateSource; // Address of the rate source contract
         RateSourceType sourceType; // Type of the rate source (RATE or EXCHANGE_RATE)
         uint256 latestRate; // Latest recorded rate for the token
@@ -43,7 +43,7 @@ contract RateSender is
     IRouterClient public router; // Chainlink's CCIP router
     IERC20 public linkToken; // LINK token used for paying fees
 
-    mapping(string => TokenRateInfo) private tokenRateInfos; // Mapping of token names to their rate info
+    mapping(string => RTokenInfo) private tokenInfos; // Mapping of token names to their token info
     string[] public tokenNames; // List of all token names added to the contract
 
     uint256 public gasLimit; // Gas limit for cross-chain transactions
@@ -133,16 +133,17 @@ contract RateSender is
         uint64 _selector
     ) external onlyRole(ADMIN_ROLE) {
         // Check if the token rate already exists
-        require(tokenRateInfos[tokenName].rateSource == address(0), "Token rate already exists");
+        require(tokenInfos[tokenName].rateSource == address(0), "Token rate already exists");
 
         // Add token rate information
-        tokenRateInfos[tokenName].rateSource = rateSource;
-        tokenRateInfos[tokenName].sourceType = sourceType;
+        tokenInfos[tokenName].rateSource = rateSource;
+        tokenInfos[tokenName].sourceType = sourceType;
         tokenNames.push(tokenName);
 
         // Add rate info for the specific chain
-        if (!tokenRateInfos[tokenName].chainSelectors.add(_selector)) revert SelectorExist();
-        tokenRateInfos[tokenName].dstInfoOf[_selector] = RateInfo({receiver: _receiver, destination: _dstRateProvider});
+        if (!tokenInfos[tokenName].chainSelectors.add(_selector)) revert SelectorExist();
+        DestinationInfo memory dstInfo = DestinationInfo({receiver: _receiver, dstRateProvider: _dstRateProvider});
+        tokenInfos[tokenName].dstInfoOf[_selector] = dstInfo;
 
         emit TokenRateAdded(tokenName, rateSource, sourceType);
         emit RateInfoAdded(tokenName, _receiver, _dstRateProvider, _selector);
@@ -151,8 +152,8 @@ contract RateSender is
     /// @notice Removes rate information for a specific token and chain
     /// @param tokenName Name of the token
     /// @param _selector Chain selector to remove
-    function removeRateInfo(string memory tokenName, uint64 _selector) external onlyRole(ADMIN_ROLE) {
-        TokenRateInfo storage tokenInfo = tokenRateInfos[tokenName];
+    function removeRTokenInfo(string memory tokenName, uint64 _selector) external onlyRole(ADMIN_ROLE) {
+        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
         if (!tokenInfo.chainSelectors.remove(_selector)) revert SelectorNotExist();
         delete tokenInfo.dstInfoOf[_selector];
     }
@@ -162,14 +163,18 @@ contract RateSender is
     /// @param _receiver New receiver address
     /// @param _dstRateProvider New rate provider address
     /// @param _selector Chain selector to update
-    function updateRateInfo(
+    function updateRTokenInfo(
         string memory tokenName,
+        address rateSource,
+        RateSourceType sourceType,
         address _receiver,
         address _dstRateProvider,
         uint64 _selector
     ) external onlyRole(ADMIN_ROLE) {
-        TokenRateInfo storage tokenInfo = tokenRateInfos[tokenName];
+        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
         if (!tokenInfo.chainSelectors.contains(_selector)) revert SelectorNotExist();
+        tokenInfo.rateSource = rateSource;
+        tokenInfo.sourceType = sourceType;
         tokenInfo.dstInfoOf[_selector] = DestinationInfo({receiver: _receiver, dstRateProvider: _dstRateProvider});
     }
 
@@ -178,14 +183,14 @@ contract RateSender is
     /// @param tokenName The name of the token to retrieve information for
     /// @return A TokenRateInfoView struct containing the token's rate information
     function getRTokenInfo(string memory tokenName) external view returns (TokenRateInfoView memory) {
-        TokenRateInfo storage info = tokenRateInfos[tokenName];
+        RTokenInfo storage info = tokenInfos[tokenName];
         return
             TokenRateInfoView({
-                rateSource: info.rateSource,
-                sourceType: info.sourceType,
-                latestRate: info.latestRate,
-                chainSelectors: info.chainSelectors.values()
-            });
+            rateSource: info.rateSource,
+            sourceType: info.sourceType,
+            latestRate: info.latestRate,
+            chainSelectors: info.chainSelectors.values()
+        });
     }
 
     // @notice Retrieves the rate information for a specific token and chain
@@ -195,7 +200,7 @@ contract RateSender is
         string memory tokenName,
         uint64 _selector
     ) external view returns (DestinationInfo memory) {
-        DestinationInfo storage info = tokenRateInfos[tokenName].dstInfoOf[_selector];
+        DestinationInfo storage info = tokenInfos[tokenName].dstInfoOf[_selector];
         return info;
     }
 
@@ -241,7 +246,7 @@ contract RateSender is
     /// @param tokenName Name of the token
     /// @return Current rate of the token
     function getRate(string memory tokenName) internal view returns (uint256) {
-        TokenRateInfo storage tokenInfo = tokenRateInfos[tokenName];
+        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
         if (tokenInfo.sourceType == RateSourceType.RATE) {
             return IRTokenRate(tokenInfo.rateSource).getRate();
         } else {
@@ -254,7 +259,7 @@ contract RateSender is
     /// @return performData Encoded data to be used in performUpkeep function
     function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
         for (uint i = 0; i < tokenNames.length; i++) {
-            TokenRateInfo storage tokenInfo = tokenRateInfos[tokenNames[i]];
+            RTokenInfo storage tokenInfo = tokenInfos[tokenNames[i]];
             uint256 newRate = getRate(tokenNames[i]);
             if (tokenInfo.latestRate != newRate && tokenInfo.chainSelectors.length() > 0) {
                 return (true, abi.encode(tokenNames[i]));
@@ -273,16 +278,16 @@ contract RateSender is
     /// @notice Internal function to send token rate to all registered chains
     /// @param tokenName Name of the token to send rate for
     function sendTokenRate(string memory tokenName) internal {
-        TokenRateInfo storage tokenInfo = tokenRateInfos[tokenName];
+        RTokenInfo storage tokenInfo = tokenInfos[tokenName];
         tokenInfo.latestRate = getRate(tokenName);
         uint256[] memory selectors = tokenInfo.chainSelectors.values();
         for (uint256 i = 0; i < selectors.length; i++) {
             uint256 selector = selectors[i];
-            DestinationInfo memory rateInfo = tokenInfo.dstInfoOf[selector];
+            DestinationInfo memory dstInfo = tokenInfo.dstInfoOf[selector];
 
-            RateMsg memory rateMsg = RateMsg({destination: rateInfo.dstRateProvider, rate: tokenInfo.latestRate});
+            RateMsg memory rateMsg = RateMsg({dstRateProvider: dstInfo.dstRateProvider, rate: tokenInfo.latestRate});
 
-            sendMessage(uint64(selector), rateInfo.receiver, abi.encode(rateMsg));
+            sendMessage(uint64(selector), dstInfo.receiver, abi.encode(rateMsg));
         }
     }
 }

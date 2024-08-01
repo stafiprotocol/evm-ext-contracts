@@ -7,7 +7,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # Deploy to Source Chain
 echo "Deploying to Source Chain..." >&2
-chain_source_result=$(npx hardhat run ${SCRIPT_DIR}/deploy_rate_msg_chain_source.js --network ${NETWORK_SOURCE} 2>&1)
+chain_source_result=$(npx hardhat run ${SCRIPT_DIR}/deploy_rate_msg_source.js --network ${NETWORK_SOURCE} 2>&1)
 echo "Source Chain deployment result:" >&2
 echo "$chain_source_result" >&2
 
@@ -26,7 +26,7 @@ fi
 # Deploy to Destination Chain
 echo "Deploying to Destination Chain..." >&2
 export RATE_SENDER_ADDRESS=$rate_sender_address
-chain_destination_result=$(RATE_SENDER_ADDRESS=$rate_sender_address npx hardhat run ${SCRIPT_DIR}/deploy_rate_msg_chain_destination.js --network ${NETWORK_DESTINATION} 2>&1)
+chain_destination_result=$(RATE_SENDER_ADDRESS=$rate_sender_address npx hardhat run ${SCRIPT_DIR}/deploy_rate_msg_destination.js --network ${NETWORK_DESTINATION} 2>&1)
 echo "Destination Chain deployment result:" >&2
 echo "$chain_destination_result" >&2
 
