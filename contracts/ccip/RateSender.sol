@@ -20,8 +20,6 @@ contract RateSender is
 {
     using EnumerableSet for EnumerableSet.UintSet;
 
-    address public ccipRegister;
-
     IRouterClient public router;
 
     LinkTokenInterface public linkToken;
@@ -39,25 +37,41 @@ contract RateSender is
     IRMAITCRate public rmatic;
     uint256 public rmaticLatestRate;
 
-    modifier onlyCCIPRegister() {
-        if (ccipRegister != msg.sender) {
-            revert TransferNotAllow();
-        }
-        _;
-    }
+    uint256 public gasLimit;
+    bytes extraArgs;
+    bool useExtraArgs;
 
     constructor(
         address _router,
         address _link,
-        address _ccipRegister,
         address _rethSource,
         address _rmaticSource
     ) {
         router = IRouterClient(_router);
         linkToken = LinkTokenInterface(_link);
-        ccipRegister = _ccipRegister;
         reth = IRETHRate(_rethSource);
         rmatic = IRMAITCRate(_rmaticSource);
+        gasLimit = 600_000;
+        useExtraArgs = false;
+    }
+
+    function setRouter(address _router) external onlyOwner {
+        router = IRouterClient(_router);
+    }
+
+    function setGasLimit(uint256 _gasLimit) external onlyOwner {
+        if (_gasLimit < 200_000) {
+            revert GasLimitTooLow();
+        }
+        gasLimit = _gasLimit;
+    }
+
+    function setExtraArgs(
+        bytes memory _extraArgs,
+        bool _useExtraArgs
+    ) external onlyOwner {
+        extraArgs = _extraArgs;
+        useExtraArgs = _useExtraArgs;
     }
 
     function addRETHRateInfo(
@@ -124,7 +138,7 @@ contract RateSender is
 
         if (balance == 0) revert NotEnoughBalance(0, 0);
 
-        linkToken.transfer(_to, balance);
+        require(linkToken.transfer(_to, balance), "Transfer failed");
     }
 
     /// @notice Sends data to receiver on the destination chain.
@@ -137,14 +151,18 @@ contract RateSender is
         bytes memory data
     ) internal {
         // Create an EVM2AnyMessage struct in memory with necessary information for sending a cross-chain message
+        bytes memory thisExtraArgs = Client._argsToBytes(
+            // Additional arguments, setting gas limit and non-strict sequencing mode
+            Client.EVMExtraArgsV1({gasLimit: gasLimit})
+        );
+        if (useExtraArgs) {
+            thisExtraArgs = extraArgs;
+        }
         Client.EVM2AnyMessage memory evm2AnyMessage = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver), // ABI-encoded receiver address
             data: data, // ABI-encoded
             tokenAmounts: new Client.EVMTokenAmount[](0), // Empty array indicating no tokens are being sent
-            extraArgs: Client._argsToBytes(
-                // Additional arguments, setting gas limit and non-strict sequencing mode
-                Client.EVMExtraArgsV1({gasLimit: 600_000, strict: false})
-            ),
+            extraArgs: thisExtraArgs,
             // Set the feeToken  address, indicating LINK will be used for fees
             feeToken: address(linkToken)
         });
@@ -186,8 +204,31 @@ contract RateSender is
         external
         view
         override
-        returns (bool upkeepNeeded, bytes memory performData)
+        returns (bool upkeepNeeded, bytes memory /* performData */)
     {
+        uint taskType = getTaskType();
+        if (taskType > 0) {
+            return (true, bytes(""));
+        }
+        return (false, bytes(""));
+    }
+
+    /**
+     * @notice Called by the Chainlink Automation Network to update RETH and/or RMATIC rates.
+     */
+    function performUpkeep(bytes calldata /* performData */) external override {
+        uint taskType = getTaskType();
+        if (taskType == 1) {
+            sendRETHRate();
+        } else if (taskType == 2) {
+            sendMATICRate();
+        } else if (taskType == 3) {
+            sendRETHRate();
+            sendMATICRate();
+        }
+    }
+
+    function getTaskType() internal view returns (uint) {
         uint taskType = 0;
         uint256 newRate = reth.getExchangeRate();
         if (rethLatestRate != newRate && rethChainSelectors.length() > 0) {
@@ -197,28 +238,7 @@ contract RateSender is
         if (rmaticLatestRate != newRate && rmaticChainSelectors.length() > 0) {
             taskType += 2;
         }
-        if (taskType > 0) {
-            return (true, abi.encode(taskType));
-        }
-        return (false, bytes(""));
-    }
-
-    /**
-     * @notice Called by the Chainlink Automation Network to update RETH and/or RMATIC rates.
-     * @param performData The ABI-encoded integer representing the type of task to perform.
-     */
-    function performUpkeep(
-        bytes calldata performData
-    ) external override onlyCCIPRegister {
-        uint taskType = abi.decode(performData, (uint));
-        if (taskType == 1) {
-            sendRETHRate();
-        } else if (taskType == 2) {
-            sendMATICRate();
-        } else if (taskType == 3) {
-            sendRETHRate();
-            sendMATICRate();
-        }
+        return taskType;
     }
 
     function sendRETHRate() internal {

@@ -7,6 +7,8 @@ interface IRateSender {
     error TransferNotAllow();
     error SelectorExist();
     error SelectorNotExist();
+    error GasLimitTooLow();
+
     event MessageSent(
         bytes32 indexed messageId,
         uint64 indexed destinationChainSelector,

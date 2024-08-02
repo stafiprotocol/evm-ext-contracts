@@ -7,6 +7,8 @@ import "./interface/ICCIPRateProvider.sol";
 import "./Types.sol";
 
 contract RateReceiver is CCIPReceiver {
+    error TransferNotAllow();
+
     // Event emitted when a message is received from another chain.
     event MessageReceived(
         bytes32 indexed messageId, // The unique ID of the message.
@@ -19,25 +21,31 @@ contract RateReceiver is CCIPReceiver {
     bytes32 private lastReceivedMessageId; // Store the last received messageId.
     bytes private lastReceivedData; // Store the last received bytes data.
 
-    constructor(address _router) CCIPReceiver(_router) {}
+    address private allowSender;
+
+    constructor(address _router, address _allowSender) CCIPReceiver(_router) {
+        allowSender = _allowSender;
+    }
 
     /// handle a received message
     function _ccipReceive(
         Client.Any2EVMMessage memory any2EvmMessage
     ) internal override {
+        address senderAddress = abi.decode(any2EvmMessage.sender, (address));
+        if (allowSender != senderAddress) {
+            revert TransferNotAllow();
+        }
+
         lastReceivedMessageId = any2EvmMessage.messageId; // fetch the messageId
         lastReceivedData = any2EvmMessage.data;
 
-        RateMsg memory rateMsg = abi.decode(
-            lastReceivedData,
-            (RateMsg)
-        );
+        RateMsg memory rateMsg = abi.decode(lastReceivedData, (RateMsg));
         ICCIPRateProvider(rateMsg.destination).setRate(rateMsg.rate);
 
         emit MessageReceived(
             any2EvmMessage.messageId,
             any2EvmMessage.sourceChainSelector, // fetch the source chain identifier (aka selector)
-            abi.decode(any2EvmMessage.sender, (address)), // abi-decoding of the sender address,
+            senderAddress, // abi-decoding of the sender address,
             rateMsg.destination,
             rateMsg.rate
         );
