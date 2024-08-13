@@ -2,12 +2,12 @@
 
 ### Contract deploy
 
-1. deploy Receiver
-2. deploy CCIPRateProvider (rate+address(Receiver))
-3. deploy Sender (router address https://docs.chain.link/ccip/supported-networks)
+1. deploy Sender (router address https://docs.chain.link/ccip/supported-networks)
    * deploy
    * addRETHRateInfo
    * addMATICRateInfo
+2. deploy Receiver
+3. deploy CCIPRateProvider (rate+address(Receiver))
 4. send link to Sender
 5. register Sender to [chainlink Automation sepolia](https://automation.chain.link/sepolia)
    * CCIP Registry(ETH sepolia) 0x86EFBD0b6736Bed994962f9797049422A3A8E8Ad
