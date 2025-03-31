@@ -9,20 +9,27 @@ import "./base/Ownable.sol";
 contract BurnToEarn is Initializable, UUPSUpgradeable, Ownable {
     using SafeERC20 for IERC20;
 
+    error BurnAmountTooLow();
+
     event Burn(address user, uint256 amount, uint8 projectId, string recipient);
     event Withdraw(uint256 amount, address recipient);
 
     address public tokenAddress;
+    uint256 public minAmount;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
 
-    function initialize(address _tokenAddress) external initializer {
+    function initialize(
+        address _tokenAddress,
+        uint256 _minAmount
+    ) external initializer {
         _initOwner(msg.sender);
 
         tokenAddress = _tokenAddress;
+        minAmount = _minAmount;
     }
 
     function _authorizeUpgrade(
@@ -33,19 +40,8 @@ contract BurnToEarn is Initializable, UUPSUpgradeable, Ownable {
         return _getInitializedVersion();
     }
 
-    function burn(
-        uint256 _amount,
-        uint8 _projectId,
-        string calldata _recipient
-    ) external {
-        // transfer erc20 token
-        IERC20(tokenAddress).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _amount
-        );
-
-        emit Burn(msg.sender, _amount, _projectId, _recipient);
+    function updateMintAmount(uint256 _minAmount) external onlyOwner {
+        minAmount = _minAmount;
     }
 
     function withdraw(address _recipient) external onlyOwner {
@@ -55,5 +51,21 @@ contract BurnToEarn is Initializable, UUPSUpgradeable, Ownable {
 
             emit Withdraw(amount, _recipient);
         }
+    }
+
+    function burn(
+        uint256 _amount,
+        uint8 _projectId,
+        string calldata _recipient
+    ) external {
+        if (_amount < minAmount) revert BurnAmountTooLow();
+        // transfer erc20 token
+        IERC20(tokenAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
+
+        emit Burn(msg.sender, _amount, _projectId, _recipient);
     }
 }
