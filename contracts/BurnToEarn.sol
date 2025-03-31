@@ -50,7 +50,7 @@ contract BurnToEarn is Initializable, UUPSUpgradeable, Ownable {
         address _newImplementation
     ) internal override onlyOwner {}
 
-    function updateMintAmount(uint256 _minAmount) external onlyOwner {
+    function updateMinAmount(uint256 _minAmount) external onlyOwner {
         minAmount = _minAmount;
     }
 
@@ -78,8 +78,7 @@ contract BurnToEarn is Initializable, UUPSUpgradeable, Ownable {
         string calldata _recipient
     ) external {
         if (_amount < minAmount) revert BurnAmountTooLow();
-        if (endTime[_projectId] == 0 || block.timestamp > endTime[_projectId])
-            revert ActEnd();
+        if (block.timestamp > endTime[_projectId]) revert ActEnd();
 
         // transfer erc20 token
         IERC20(tokenAddress).safeTransferFrom(
