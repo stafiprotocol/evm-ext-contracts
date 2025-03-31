@@ -17,3 +17,5 @@ artifacts
 dbg.project.json
 artifacts-dbg/*
 contracts-dbg/*
+.yarn/
+.yarnrc.yml
