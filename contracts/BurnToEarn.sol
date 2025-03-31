@@ -10,12 +10,14 @@ contract BurnToEarn is Initializable, UUPSUpgradeable, Ownable {
     using SafeERC20 for IERC20;
 
     error BurnAmountTooLow();
+    error ActEnd();
 
     event Burn(address user, uint256 amount, uint8 projectId, string recipient);
     event Withdraw(uint256 amount, address recipient);
 
     address public tokenAddress;
     uint256 public minAmount;
+    mapping(uint8 => uint256) public endTime;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -24,24 +26,39 @@ contract BurnToEarn is Initializable, UUPSUpgradeable, Ownable {
 
     function initialize(
         address _tokenAddress,
-        uint256 _minAmount
+        uint256 _minAmount,
+        uint8 _projectId,
+        uint256 _endTime
     ) external initializer {
         _initOwner(msg.sender);
 
         tokenAddress = _tokenAddress;
         minAmount = _minAmount;
+
+        endTime[_projectId] = _endTime;
     }
 
-    function _authorizeUpgrade(
-        address _newImplementation
-    ) internal override onlyOwner {}
+    // getter
 
     function version() external view returns (uint8) {
         return _getInitializedVersion();
     }
 
+    // owner
+
+    function _authorizeUpgrade(
+        address _newImplementation
+    ) internal override onlyOwner {}
+
     function updateMintAmount(uint256 _minAmount) external onlyOwner {
         minAmount = _minAmount;
+    }
+
+    function updateEndTime(
+        uint8 _projectId,
+        uint256 _endTime
+    ) external onlyOwner {
+        endTime[_projectId] = _endTime;
     }
 
     function withdraw(address _recipient) external onlyOwner {
@@ -53,12 +70,17 @@ contract BurnToEarn is Initializable, UUPSUpgradeable, Ownable {
         }
     }
 
+    // user
+
     function burn(
         uint256 _amount,
         uint8 _projectId,
         string calldata _recipient
     ) external {
         if (_amount < minAmount) revert BurnAmountTooLow();
+        if (endTime[_projectId] == 0 || block.timestamp > endTime[_projectId])
+            revert ActEnd();
+
         // transfer erc20 token
         IERC20(tokenAddress).safeTransferFrom(
             msg.sender,
